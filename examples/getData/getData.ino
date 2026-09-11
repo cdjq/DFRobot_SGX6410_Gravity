@@ -1,12 +1,14 @@
 /*!
- * @file setOperationMode.ino
- * @brief Set and read the Gravity SGX6410 operation mode
- * @details Switch the sensor to PBAQ mode, then print the mode register and TVOC/ETOH.
+ * @file getData.ino
+ * @brief Read Gravity SGX6410 air quality data without humidity compensation
+ * @details Initialize the module, set IAQ mode, then poll scaled IAQ/TVOC/ETOH/eCO2/RelIAQ.
+ * @n Humidity compensation is not enabled, so SHT40 humidity is not printed.
+ * @n The humidity compensation switch is still read and printed.
  * @copyright Copyright (c) 2026 DFRobot Co.Ltd (http://www.dfrobot.com)
  * @license The MIT License (MIT)
  * @author PLELES(li.jia@dfrobot.com)
  * @version V1.0.0
- * @date 2026-09-09
+ * @date 2026-09-11
  * @url https://github.com/DFRobot/DFRobot_SGX6410_Gravity
  */
 
@@ -25,20 +27,41 @@ void setup()
   while (!Serial) {
     delay(10);
   }
-
-  Serial.println("Gravity SGX6410 setOperationMode");
+  Serial.println("Gravity SGX6410 getData");
+  Serial.flush();
 
   while (sgx6410.begin() != true) {
     Serial.println("Init failed, check I2C address and wiring");
+    Serial.flush();
     delay(1000);
   }
+  Serial.println("Init success");
 
-  // while (sgx6410.setOperationMode(DFRobot_SGX6410_Gravity::ePbaq) != true) {
-  //   Serial.println("Set PBAQ mode failed");
-  //   delay(1000);
-  // }
-  Serial.print("Mode=");
-  Serial.println((uint8_t)sgx6410.getOperationMode(), HEX);
+  Serial.print("VID=0x");
+  Serial.println(sgx6410.getVid(), HEX);
+  Serial.print("SGX PID=0x");
+  Serial.println(sgx6410.getSgxProductId(), HEX);
+
+  uint8_t tracking[6] = {0, 0, 0, 0, 0, 0};
+  if (sgx6410.getTrackingNumber(tracking)) {
+    Serial.print("Tracking=");
+    for (uint8_t i = 0; i < 6; i++) {
+      if (tracking[i] < 0x10) {
+        Serial.print("0");
+      }
+      Serial.print(tracking[i], HEX);
+      if (i < 5) {
+        Serial.print(" ");
+      }
+    }
+    Serial.println();
+  }
+
+  while (sgx6410.setOperationMode(DFRobot_SGX6410_Gravity::eIaq) != true) {
+    Serial.println("Set IAQ mode failed");
+    delay(1000);
+  }
+  Serial.println("IAQ mode set");
 }
 
 void loop()
@@ -49,6 +72,8 @@ void loop()
       delay(500);
       return;
     }
+    Serial.print("Humidity comp enable=");
+    Serial.println((uint16_t)sgx6410.getHumidityCompEnable());
     Serial.print("Mode:     0x");
     Serial.println((uint8_t)sgx6410.getOperationMode(), HEX);
     Serial.print("IAQ:      ");
@@ -70,6 +95,5 @@ void loop()
   } else {
     Serial.println("Failed to read gas data!");
   }
-
   delay(1000);
 }

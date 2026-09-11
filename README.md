@@ -24,11 +24,12 @@ SKU: SEN0771
 
 * Supports Gravity SGX6410 module over I2C (7-bit address 0x52 or 0x53)
 * Verifies DFRobot vendor ID 0x3343 at begin()
-* Configures SGX6410 modes: Suspend, IAQ, ULP, PBAQ
+* Configures SGX6410 modes: Suspend, IAQ, ULP, PBAQ, and one-time sensor clean (0x80)
 * Reads scaled IAQ, TVOC, ETOH, eCO2 and RelIAQ
 * Writes manual humidity compensation codes (0-255 from 0-100 %RH)
 * Enables or disables automatic SHT40 humidity compensation on the bridge
 * Reads module VID/PID/firmware version, latched I2C address, SGX6410 product ID and tracking number
+* Reads on-board SHT40 temperature and humidity after humidity compensation is enabled
 
 ## Installation
 
@@ -43,9 +44,13 @@ SKU: SEN0771
    * @brief Constructor
    * @param pWire I2C object pointer, typically &Wire
    * @param addr 7-bit I2C address, 0x52 or 0x53, default 0x53
+   * @param sclPin SCL pin, default SGX_I2C_PIN_DEFAULT
+   * @param sdaPin SDA pin, default SGX_I2C_PIN_DEFAULT
    * @n ADD_SEL low selects 0x52, ADD_SEL high selects 0x53. The switch is latched at module power-up.
+   * @n ESP32/ESP8266: pass sclPin/sdaPin to remap I2C, or omit them to use the board default pins.
+   * @n UNO and other boards with fixed Wire pins: omit sclPin/sdaPin; they are ignored in begin().
    */
-  DFRobot_SGX6410_Gravity_I2C(TwoWire *pWire, uint8_t addr = SGX_I2C_ADDR_DEFAULT);
+  DFRobot_SGX6410_Gravity_I2C(TwoWire *pWire, uint8_t addr = SGX_I2C_ADDR_DEFAULT, uint8_t sclPin = SGX_I2C_PIN_DEFAULT, uint8_t sdaPin = SGX_I2C_PIN_DEFAULT);
 
   /**
    * @fn begin
@@ -54,6 +59,7 @@ SKU: SEN0771
    * @retval true  Initialization successful
    * @retval false Initialization failed
    * @n Calls TwoWire::begin() on the injected bus, then the base begin() VID check.
+   * @n On ESP32/ESP8266, custom SCL/SDA from the constructor are applied here. UNO always uses the default Wire pins.
    */
   bool begin(void);
 
@@ -87,12 +93,24 @@ SKU: SEN0771
    * @n eUlp: Ultra-low power, about 90 s sample period, 15 min warm-up
    * @n ePbaq: PBAQ, about 5 s sample period, 5 min warm-up
    * @n Mode change is a maintenance action. The bridge restarts warm-up and clears isNew/valid.
-   * @n Sensor cleaning 0x80 is not accepted on this Gravity interface.
+   * @n Sensor cleaning 0x80 should be started with runSensorClean(), not called repeatedly.
    * @return bool
    * @retval true  Setting successful
    * @retval false Setting failed or mode not allowed
    */
   bool setOperationMode(eMode_t mode);
+
+  /**
+   * @fn runSensorClean
+   * @brief Run the sensor thermal-clean sequence: start clean, then poll until done
+   * @param timeoutMs Timeout in ms, recommend >= 90000 (clean takes about 60 s)
+   * @return uint8_t CLEAN_OK=0 finished / CLEAN_DONE=1 already cleaned / CLEAN_TIMEOUT=2 timeout / CLEAN_FAIL=3 comm error
+   * @warning Interrupting clean can permanently damage the sensing material. Keep power stable.
+   * @n The sensor should be cleaned only once in its lifetime.
+   * @n Reads REG_I2C_CLEAN_FLAG first. If it is 1, returns CLEAN_DONE without sending 0x80.
+   * @n Otherwise writes eSensorClean (0x80) and polls the mode register: 0x80 still cleaning, 0x00 finished.
+   */
+  uint8_t runSensorClean(uint32_t timeoutMs);
 
   /**
    * @fn getOperationMode
@@ -206,7 +224,7 @@ SKU: SEN0771
    * @n Call this before getAllGasData() / getSingleGasData().
    * @n IAQ/ULP: IAQ = raw/10, TVOC = raw/100 mg/m3, ETOH = raw/100 ppm, ECO2 = raw ppm, RELIAQ = raw/10
    * @n PBAQ: TVOC = raw/1000 mg/m3, ETOH = raw/1000 ppm; IAQ, ECO2 and RELIAQ are NAN
-   * @n isNew and valid come from the bridge, which already applies sample-counter and warm-up rules.
+   * @n isNew and valid come from the bridge. After a new sample is read, the host writes isNew back to 0.
    */
   bool update(void);
 
@@ -231,6 +249,17 @@ SKU: SEN0771
    * @n Must call update() first.
    */
   float getSingleGasData(eDataType_t dataType);
+
+  /**
+   * @fn getSHT40Data
+   * @brief Read on-board SHT40 temperature and humidity from the Gravity bridge cache
+   * @return sSHT40Data_t & Cached temperature (C) and humidity (%RH)
+   * @n Gravity-only API. The host does not talk to SHT40 directly.
+   * @n Firmware reads SHT40 only after setHumidityCompEnable(eHumCompEnable).
+   * @n If compensation is off, or no valid sample has been cached yet, temperature and humidity are NAN.
+   * @n Temperature = -45 + 175 * raw / 65535. Humidity = -6 + 125 * raw / 65535.
+   */
+  sSHT40Data_t &getSHT40Data(void);
 ```
 
 ## Compatibility

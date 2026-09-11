@@ -24,11 +24,12 @@ SKU: SEN0771
 
 * 通过 I2C 访问 Gravity SGX6410 模块（7 位地址 0x52 或 0x53）
 * begin() 校验 DFRobot VID 0x3343
-* 配置 SGX6410 模式：Suspend、IAQ、ULP、PBAQ
+* 配置 SGX6410 模式：Suspend、IAQ、ULP、PBAQ，以及一生一次的传感器清洁（0x80）
 * 读取换算后的 IAQ、TVOC、ETOH、eCO2、RelIAQ
 * 写入手动湿度补偿码（由 0-100 %RH 转为 0-255）
 * 开关桥接板上的 SHT40 自动湿度补偿
 * 读取模块 VID/PID/固件版本、锁存的 I2C 地址、SGX6410 产品 ID 和序列号
+* 在打开湿度补偿后读取板载 SHT40 温度和湿度
 
 ## 库安装
 
@@ -43,9 +44,13 @@ SKU: SEN0771
    * @brief 构造函数
    * @param pWire I2C 对象指针，通常为 &Wire
    * @param addr 7 位 I2C 地址，0x52 或 0x53，默认 0x53
+   * @param sclPin SCL 引脚，默认 SGX_I2C_PIN_DEFAULT
+   * @param sdaPin SDA 引脚，默认 SGX_I2C_PIN_DEFAULT
    * @n ADD_SEL 低电平选择 0x52，高电平选择 0x53。拨码在模块上电时锁存。
+   * @n ESP32/ESP8266：传入 sclPin/sdaPin 可改 I2C 引脚，省略则用板级默认脚。
+   * @n UNO 等固定 Wire 引脚的主板：不要传 sclPin/sdaPin，begin() 会忽略这两个参数。
    */
-  DFRobot_SGX6410_Gravity_I2C(TwoWire *pWire, uint8_t addr = SGX_I2C_ADDR_DEFAULT);
+  DFRobot_SGX6410_Gravity_I2C(TwoWire *pWire, uint8_t addr = SGX_I2C_ADDR_DEFAULT, uint8_t sclPin = SGX_I2C_PIN_DEFAULT, uint8_t sdaPin = SGX_I2C_PIN_DEFAULT);
 
   /**
    * @fn begin
@@ -54,6 +59,7 @@ SKU: SEN0771
    * @retval true  初始化成功
    * @retval false 初始化失败
    * @n 对注入的总线调用 TwoWire::begin()，再执行基类 begin() 的 VID 检查。
+   * @n ESP32/ESP8266 会在此处应用构造函数里的自定义 SCL/SDA。UNO 始终使用默认 Wire 引脚。
    */
   bool begin(void);
 
@@ -87,12 +93,23 @@ SKU: SEN0771
    * @n eUlp: 超低功耗，采样周期约 90 s，预热 15 min
    * @n ePbaq: PBAQ，采样周期约 5 s，预热 5 min
    * @n 改模式属于维护操作。桥接器会重新预热并清除 isNew/valid。
-   * @n 本 Gravity 接口不接受传感器清洁模式 0x80。
+   * @n 传感器清洁 0x80 应通过 runSensorClean() 启动，不要反复调用。
    * @return bool
    * @retval true  设置成功
    * @retval false 设置失败或模式不允许
    */
   bool setOperationMode(eMode_t mode);
+
+  /**
+   * @fn runSensorClean
+   * @brief 执行传感器热清洁：启动清洁并轮询完成状态
+   * @param timeoutMs 超时毫秒，建议 >= 90000（清洁约 60 s）
+   * @return uint8_t CLEAN_OK=0 清洁完成 / CLEAN_DONE=1 已清洁过 / CLEAN_TIMEOUT=2 超时 / CLEAN_FAIL=3 通讯失败
+   * @warning 清洁中断可能永久损伤气敏材料，请保证供电稳定。整个生命周期建议只清洁一次。
+   * @n 先读 REG_I2C_CLEAN_FLAG，为 1 则直接返回 CLEAN_DONE，不发送 0x80。
+   * @n 否则写入 eSensorClean（0x80），轮询模式寄存器：0x80 仍在清洁，0x00 清洁完毕。
+   */
+  uint8_t runSensorClean(uint32_t timeoutMs);
 
   /**
    * @fn getOperationMode
@@ -206,7 +223,7 @@ SKU: SEN0771
    * @n 调用 getAllGasData() / getSingleGasData() 前必须先调用本函数。
    * @n IAQ/ULP：IAQ = raw/10，TVOC = raw/100 mg/m3，ETOH = raw/100 ppm，ECO2 = raw ppm，RELIAQ = raw/10
    * @n PBAQ：TVOC = raw/1000 mg/m3，ETOH = raw/1000 ppm；IAQ、ECO2、RELIAQ 为 NAN
-   * @n isNew 与 valid 由桥接器给出，已包含 sample counter 与预热规则。
+   * @n isNew 与 valid 由桥接器给出。读到新样本后，主机将 isNew 写回 0。
    */
   bool update(void);
 
@@ -231,6 +248,17 @@ SKU: SEN0771
    * @n 须先调用 update()。
    */
   float getSingleGasData(eDataType_t dataType);
+
+  /**
+   * @fn getSHT40Data
+   * @brief 读取板载 SHT40 温湿度（Gravity 桥接缓存）
+   * @return sSHT40Data_t & 缓存的温度（C）和湿度（%RH）
+   * @n Gravity 版本专用 API。主机不直接访问 SHT40。
+   * @n 固件仅在 setHumidityCompEnable(eHumCompEnable) 之后才会读取 SHT40。
+   * @n 若补偿关闭，或尚未缓存到有效样本，temperature 和 humidity 为 NAN。
+   * @n 温度 = -45 + 175 * raw / 65535。湿度 = -6 + 125 * raw / 65535。
+   */
+  sSHT40Data_t &getSHT40Data(void);
 ```
 
 ## 兼容性

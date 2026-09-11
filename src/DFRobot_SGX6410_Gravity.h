@@ -38,6 +38,7 @@
 #define SGX_I2C_ADDR_LOW          0x52      ///< 7-bit I2C address when ADD_SEL is low
 #define SGX_I2C_ADDR_HIGH         0x53      ///< 7-bit I2C address when ADD_SEL is high (default)
 #define SGX_I2C_ADDR_DEFAULT      0x53      ///< Default 7-bit I2C address
+#define SGX_I2C_PIN_DEFAULT       0xFF      ///< Use the board default SDA/SCL pins
 #define DEVICE_VID                0x3343    ///< DFRobot vendor ID
 #define DEVICE_PID                0x0000    ///< Module product ID (firmware TBD)
 #define DEVICE_FW_VERSION         0x1000    ///< Module firmware version encoding V1.0.0.0
@@ -60,10 +61,10 @@
 #define REG_I_RESERVED0           0x0003    ///< UART input: reserved
 #define REG_I_RESERVED1           0x0004    ///< UART input: reserved
 #define REG_I_VERSION             0x0005    ///< UART input: firmware version
-#define REG_I_SGX6410_PID        0x0006    ///< UART input: SGX6410 product ID
-#define REG_I_TRACKING_NUM_0     0x0007    ///< UART input: tracking number bytes 0-1
-#define REG_I_TRACKING_NUM_1     0x0008    ///< UART input: tracking number bytes 2-3
-#define REG_I_TRACKING_NUM_2     0x0009    ///< UART input: tracking number bytes 4-5
+#define REG_I_SGX6410_PID         0x0006    ///< UART input: SGX6410 product ID
+#define REG_I_TRACKING_NUM_0      0x0007    ///< UART input: tracking number bytes 0-1
+#define REG_I_TRACKING_NUM_1      0x0008    ///< UART input: tracking number bytes 2-3
+#define REG_I_TRACKING_NUM_2      0x0009    ///< UART input: tracking number bytes 4-5
 #define REG_I_IAQ                 0x000A    ///< UART input: IAQ raw value
 #define REG_I_TVOC                0x000B    ///< UART input: TVOC raw value
 #define REG_I_ETOH                0x000C    ///< UART input: ETOH raw value
@@ -72,6 +73,8 @@
 #define REG_I_DATA_IS_NEW         0x000F    ///< UART input: new-sample flag
 #define REG_I_DATA_VALID          0x0010    ///< UART input: warm-up valid flag
 #define REG_I_SENSORS_MODE        0x0011    ///< UART input: SGX6410 operating mode
+#define REG_I_TEMP_RAW           0x0012    ///< UART input: SHT40 temperature ticks
+#define REG_I_HUM_RAW            0x0013    ///< UART input: SHT40 humidity ticks
 
 #define REG_H_RESERVED0           0x0000    ///< UART holding: reserved
 #define REG_H_RESERVED1           0x0001    ///< UART holding: reserved
@@ -83,6 +86,7 @@
 #define REG_H_SENSORS_RESET       0x0007    ///< UART holding: write 0x0001 to reset
 #define REG_H_HUMIDITY            0x0008    ///< UART holding: humidity code 0-255
 #define REG_H_HUM_COMP_EN         0x0009    ///< UART holding: humidity compensation enable
+#define REG_H_CLEAN_FLAG          0x000A    ///< UART holding: 0=not cleaned, 1=cleaned (once in lifetime)
 
 #define REG_I2C_VID               0x0000    ///< I2C: vendor ID
 #define REG_I2C_PID               0x0001    ///< I2C: module product ID
@@ -103,11 +107,18 @@
 #define REG_I2C_RELIAQ            0x0010    ///< I2C: relative IAQ raw value
 #define REG_I2C_DATA_IS_NEW       0x0011    ///< I2C: 1 = new sample, 0 = not updated
 #define REG_I2C_DATA_VALID        0x0012    ///< I2C: 1 = warm-up complete, 0 = invalid
+#define REG_I2C_TEMP_RAW          0x0013    ///< I2C: SHT40 temperature ticks, T=-45+175*raw/65535
+#define REG_I2C_HUM_RAW           0x0014    ///< I2C: SHT40 humidity ticks, RH=-6+125*raw/65535
+#define REG_I2C_CLEAN_FLAG        0x0015    ///< I2C: 0=not cleaned, 1=cleaned (2 bytes, g_I2CRegMap[42..43])
 
 class DFRobot_SGX6410_Gravity {
 public:
 #define RET_CODE_OK    0    ///< Return code: success
 #define RET_CODE_ERROR 1    ///< Return code: failure
+#define CLEAN_OK       0    ///< Sensor clean finished
+#define CLEAN_DONE     1    ///< Sensor has already been cleaned
+#define CLEAN_TIMEOUT  2    ///< Clean did not finish before timeout
+#define CLEAN_FAIL     3    ///< Communication failed during clean
 
   /**
    * @enum eCommMode_t
@@ -133,13 +144,14 @@ public:
   /**
    * @enum eMode_t
    * @brief SGX6410 operation mode
-   * @n Line values match the sensor/firmware command bytes. Sensor cleaning 0x80 is not opened on the Gravity bridge.
+   * @n Line values match the sensor/firmware command bytes.
    */
   typedef enum {
-    eSuspend = 0x00,    /**< Suspend mode */
-    eIaq     = 0x01,    /**< IAQ 2nd generation mode, poll about every 3 s, warm-up 5 min */
-    eUlp     = 0x02,    /**< Ultra-low power mode, poll about every 90 s, warm-up 15 min */
-    ePbaq    = 0x05     /**< PBAQ mode, poll about every 5 s, warm-up 5 min */
+    eSuspend     = 0x00,    /**< Suspend mode */
+    eIaq         = 0x01,    /**< IAQ 2nd generation mode, poll about every 3 s, warm-up 5 min */
+    eUlp         = 0x02,    /**< Ultra-low power mode, poll about every 90 s, warm-up 15 min */
+    ePbaq        = 0x05,    /**< PBAQ mode, poll about every 5 s, warm-up 5 min */
+    eSensorClean = 0x80    /**< Thermal clean, once in lifetime */
   } eMode_t;
 
   /**
@@ -178,6 +190,15 @@ public:
   } sGasData_t;
 
   /**
+   * @struct sSHT40Data_t
+   * @brief On-board SHT40 temperature and humidity
+   */
+  typedef struct {
+    float temperature;    /**< Temperature, unit Celsius */
+    float humidity;        /**< Relative humidity, unit %RH */
+  } sSHT40Data_t;
+
+  /**
    * @fn DFRobot_SGX6410_Gravity
    * @brief Constructor
    */
@@ -214,12 +235,24 @@ public:
    * @n eUlp: Ultra-low power, about 90 s sample period, 15 min warm-up
    * @n ePbaq: PBAQ, about 5 s sample period, 5 min warm-up
    * @n Mode change is a maintenance action. The bridge restarts warm-up and clears isNew/valid.
-   * @n Sensor cleaning 0x80 is not accepted on this Gravity interface.
+   * @n Sensor cleaning 0x80 should be started with runSensorClean(), not called repeatedly.
    * @return bool
    * @retval true  Setting successful
    * @retval false Setting failed or mode not allowed
    */
   bool setOperationMode(eMode_t mode);
+
+  /**
+   * @fn runSensorClean
+   * @brief Run the sensor thermal-clean sequence: start clean, then poll until done
+   * @param timeoutMs Timeout in ms, recommend >= 90000 (clean takes about 60 s)
+   * @return uint8_t CLEAN_OK=0 finished / CLEAN_DONE=1 already cleaned / CLEAN_TIMEOUT=2 timeout / CLEAN_FAIL=3 comm error
+   * @warning Interrupting clean can permanently damage the sensing material. Keep power stable.
+   * @n The sensor should be cleaned only once in its lifetime.
+   * @n Reads REG_I2C_CLEAN_FLAG first. If it is 1, returns CLEAN_DONE without sending 0x80.
+   * @n Otherwise writes eSensorClean (0x80) and polls the mode register: 0x80 still cleaning, 0x00 finished.
+   */
+  uint8_t runSensorClean(uint32_t timeoutMs);
 
   /**
    * @fn getOperationMode
@@ -333,17 +366,17 @@ public:
    * @n Call this before getAllGasData() / getSingleGasData().
    * @n IAQ/ULP: IAQ = raw/10, TVOC = raw/100 mg/m3, ETOH = raw/100 ppm, ECO2 = raw ppm, RELIAQ = raw/10
    * @n PBAQ: TVOC = raw/1000 mg/m3, ETOH = raw/1000 ppm; IAQ, ECO2 and RELIAQ are NAN
-   * @n isNew and valid come from the bridge, which already applies sample-counter and warm-up rules.
+   * @n isNew and valid come from the bridge.
    */
   bool update(void);
 
   /**
    * @fn getAllGasData
    * @brief Return the cached gas measurement structure
-   * @return const sGasData_t & Latest cached measurement
+   * @return sGasData_t & Latest cached measurement
    * @n Must call update() first. Check isNew for a new sample and valid for warm-up completion.
    */
-  const sGasData_t &getAllGasData(void) const { return _gasData; }
+  sGasData_t &getAllGasData(void) { return _gasData; }
 
   /**
    * @fn getSingleGasData
@@ -359,6 +392,17 @@ public:
    */
   float getSingleGasData(eDataType_t dataType);
 
+  /**
+   * @fn getSHT40Data
+   * @brief Read on-board SHT40 temperature and humidity from the Gravity bridge cache
+   * @return sSHT40Data_t & Cached temperature (C) and humidity (%RH)
+   * @n Gravity-only API. The host does not talk to SHT40 directly.
+   * @n Firmware reads SHT40 only after setHumidityCompEnable(eHumCompEnable).
+   * @n If compensation is off, or no valid sample has been cached yet, temperature and humidity are NAN.
+   * @n Temperature = -45 + 175 * raw / 65535. Humidity = -6 + 125 * raw / 65535.
+   */
+  sSHT40Data_t &getSHT40Data(void);
+
 protected:
   virtual uint8_t writeReg(uint16_t reg, void *data, uint8_t len) = 0;
   virtual uint8_t readReg(uint16_t reg, void *data, uint8_t len, eRegType_t regType = eInputReg) = 0;
@@ -368,8 +412,9 @@ protected:
   bool writeU16(uint16_t uartReg, uint16_t i2cReg, uint16_t value);
   void scaleMeasurement(uint16_t iaqRaw, uint16_t tvocRaw, uint16_t etohRaw, uint16_t eco2Raw, uint16_t relIaqRaw);
 
-  sGasData_t _gasData;
-  eMode_t    _mode;
+  sGasData_t   _gasData;
+  sSHT40Data_t _sht40Data;
+  eMode_t      _mode;
 };
 
 class DFRobot_SGX6410_Gravity_I2C : public DFRobot_SGX6410_Gravity {
@@ -379,9 +424,13 @@ public:
    * @brief Constructor
    * @param pWire I2C object pointer, typically &Wire
    * @param addr 7-bit I2C address, 0x52 or 0x53, default 0x53
+   * @param sclPin SCL pin, default SGX_I2C_PIN_DEFAULT
+   * @param sdaPin SDA pin, default SGX_I2C_PIN_DEFAULT
    * @n ADD_SEL low selects 0x52, ADD_SEL high selects 0x53. The switch is latched at module power-up.
+   * @n ESP32/ESP8266: pass sclPin/sdaPin to remap I2C, or omit them to use the board default pins.
+   * @n UNO and other boards with fixed Wire pins: omit sclPin/sdaPin; they are ignored in begin().
    */
-  DFRobot_SGX6410_Gravity_I2C(TwoWire *pWire, uint8_t addr = SGX_I2C_ADDR_DEFAULT);
+  DFRobot_SGX6410_Gravity_I2C(TwoWire *pWire, uint8_t addr = SGX_I2C_ADDR_DEFAULT, uint8_t sclPin = SGX_I2C_PIN_DEFAULT, uint8_t sdaPin = SGX_I2C_PIN_DEFAULT);
   /**
    * @fn ~DFRobot_SGX6410_Gravity_I2C
    * @brief Destructor
@@ -395,6 +444,7 @@ public:
    * @retval true  Initialization successful
    * @retval false Initialization failed
    * @n Calls TwoWire::begin() on the injected bus, then the base begin() VID check.
+   * @n On ESP32/ESP8266, custom SCL/SDA from the constructor are applied here. UNO always uses the default Wire pins.
    */
   bool begin(void);
 
@@ -406,6 +456,8 @@ protected:
 private:
   TwoWire * _pWire;
   uint8_t   _address;
+  uint8_t   _sclPin;
+  uint8_t   _sdaPin;
 };
 
 #endif
