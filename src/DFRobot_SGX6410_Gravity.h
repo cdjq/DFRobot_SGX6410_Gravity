@@ -3,7 +3,7 @@
  * @brief Define basic struct of DFRobot_SGX6410_Gravity class
  * @details Header for DFRobot_SGX6410_Gravity: class declaration, protocol constants, enums and structs.
  * @n Gravity MEMS Air Quality Sensor (SGX6410) talks to the host through a CS32L010 bridge.
- * @n This release implements the external I2C register map. UART/Modbus RTU can be added later.
+ * @n This release implements the external I2C register map and UART Modbus RTU.
  * @copyright Copyright (c) 2026 DFRobot Co.Ltd (http://www.dfrobot.com)
  * @license The MIT License (MIT)
  * @author PLELES(li.jia@dfrobot.com)
@@ -16,8 +16,15 @@
 
 #include "Arduino.h"
 #include "Wire.h"
+#include "DFRobot_RTU.h"
 #include "stdint.h"
 #include <math.h>
+
+#if defined(ARDUINO_AVR_UNO) || defined(ESP8266)
+#include "SoftwareSerial.h"
+#else
+#include "HardwareSerial.h"
+#endif
 
 //#define ENABLE_DBG
 
@@ -35,10 +42,11 @@
 #define DBG(...)
 #endif
 
-#define SGX_I2C_ADDR_LOW          0x52      ///< 7-bit I2C address when ADD_SEL is low
-#define SGX_I2C_ADDR_HIGH         0x53      ///< 7-bit I2C address when ADD_SEL is high (default)
-#define SGX_I2C_ADDR_DEFAULT      0x53      ///< Default 7-bit I2C address
+#define SGX_ADDR_LOW              0x52      ///< Slave address when ADD_SEL is low
+#define SGX_ADDR_HIGH             0x53      ///< Slave address when ADD_SEL is high (default)
+#define SGX_ADDR_DEFAULT          0x53      ///< Default slave address
 #define SGX_I2C_PIN_DEFAULT       0xFF      ///< Use the board default SDA/SCL pins
+#define SGX_UART_BAUD_DEFAULT     9600      ///< Default UART baud rate (holding code 0x0003)
 #define DEVICE_VID                0x3343    ///< DFRobot vendor ID
 #define DEVICE_PID                0x0000    ///< Module product ID (firmware TBD)
 #define DEVICE_FW_VERSION         0x1000    ///< Module firmware version encoding V1.0.0.0
@@ -55,8 +63,9 @@
 #define SGX_POLL_ULP_MS          90000UL   ///< ULP recommended poll period in ms
 #define SGX_POLL_PBAQ_MS         5000UL    ///< PBAQ recommended poll period in ms
 
-#define REG_I_VID                 0x0000    ///< UART input: vendor ID
-#define REG_I_PID                 0x0001    ///< UART input: module product ID
+/*****************************UARTModbus registers*********************************************** */
+#define REG_I_PID                 0x0000    ///< UART input: module product ID
+#define REG_I_VID                 0x0001    ///< UART input: vendor ID
 #define REG_I_DEVICE_ADDR         0x0002    ///< UART input: device address
 #define REG_I_RESERVED0           0x0003    ///< UART input: reserved
 #define REG_I_RESERVED1           0x0004    ///< UART input: reserved
@@ -73,8 +82,8 @@
 #define REG_I_DATA_IS_NEW         0x000F    ///< UART input: new-sample flag
 #define REG_I_DATA_VALID          0x0010    ///< UART input: warm-up valid flag
 #define REG_I_SENSORS_MODE        0x0011    ///< UART input: SGX6410 operating mode
-#define REG_I_TEMP_RAW           0x0012    ///< UART input: SHT40 temperature ticks
-#define REG_I_HUM_RAW            0x0013    ///< UART input: SHT40 humidity ticks
+#define REG_I_TEMP_RAW            0x0012    ///< UART input: SHT40 temperature ticks
+#define REG_I_HUM_RAW             0x0013    ///< UART input: SHT40 humidity ticks
 
 #define REG_H_RESERVED0           0x0000    ///< UART holding: reserved
 #define REG_H_RESERVED1           0x0001    ///< UART holding: reserved
@@ -88,6 +97,7 @@
 #define REG_H_HUM_COMP_EN         0x0009    ///< UART holding: humidity compensation enable
 #define REG_H_CLEAN_FLAG          0x000A    ///< UART holding: 0=not cleaned, 1=cleaned (once in lifetime)
 
+/*****************************I2C registers*********************************************** */
 #define REG_I2C_VID               0x0000    ///< I2C: vendor ID
 #define REG_I2C_PID               0x0001    ///< I2C: module product ID
 #define REG_I2C_FW_VERSION        0x0002    ///< I2C: module firmware version
@@ -125,7 +135,7 @@ public:
    * @brief Communication mode enumeration
    */
   typedef enum {
-    eCommModeUART = 0,    /**< UART communication mode (Modbus RTU, not implemented in this release) */
+    eCommModeUART = 0,    /**< UART communication mode (Modbus RTU) */
     eCommModeI2C  = 1     /**< I2C communication mode */
   } eCommMode_t;
 
@@ -285,7 +295,7 @@ public:
   float getHumidityCompensate(void);
 
   /**
-   * @fn setHumidityCompEnable
+   * @fn setAutoHumiCompensation
    * @brief Enable or disable automatic SHT40 humidity compensation on the bridge
    * @param enable Compensation switch (see eHumComp_t)
    * @n eHumCompDisable: stop SHT40 reads; SGX6410 keeps the last humidity code
@@ -295,7 +305,7 @@ public:
    * @retval true  Write successful
    * @retval false Invalid value or write failed
    */
-  bool setHumidityCompEnable(eHumComp_t enable);
+  bool setAutoHumiCompensation(eHumComp_t enable);
 
   /**
    * @fn getHumidityCompEnable
@@ -334,7 +344,8 @@ public:
    * @fn getDeviceAddr
    * @brief Read the latched external slave address
    * @return uint8_t 7-bit address, 0x52 or 0x53
-   * @n DIP ADD_SEL is sampled at power-up. Changing the switch at run time does not take effect until reset.
+   * @n DIP ADD_SEL is sampled at power-up and is also the Modbus slave address in UART mode.
+   * @n Changing the switch at run time does not take effect until reset.
    * @n Returns 0 when the read fails.
    */
   uint8_t getDeviceAddr(void);
@@ -397,7 +408,7 @@ public:
    * @brief Read on-board SHT40 temperature and humidity from the Gravity bridge cache
    * @return sSHT40Data_t & Cached temperature (C) and humidity (%RH)
    * @n Gravity-only API. The host does not talk to SHT40 directly.
-   * @n Firmware reads SHT40 only after setHumidityCompEnable(eHumCompEnable).
+   * @n Firmware reads SHT40 only after setAutoHumiCompensation(eHumCompEnable).
    * @n If compensation is off, or no valid sample has been cached yet, temperature and humidity are NAN.
    * @n Temperature = -45 + 175 * raw / 65535. Humidity = -6 + 125 * raw / 65535.
    */
@@ -430,7 +441,7 @@ public:
    * @n ESP32/ESP8266: pass sclPin/sdaPin to remap I2C, or omit them to use the board default pins.
    * @n UNO and other boards with fixed Wire pins: omit sclPin/sdaPin; they are ignored in begin().
    */
-  DFRobot_SGX6410_Gravity_I2C(TwoWire *pWire, uint8_t addr = SGX_I2C_ADDR_DEFAULT, uint8_t sclPin = SGX_I2C_PIN_DEFAULT, uint8_t sdaPin = SGX_I2C_PIN_DEFAULT);
+  DFRobot_SGX6410_Gravity_I2C(TwoWire *pWire, uint8_t addr = SGX_ADDR_DEFAULT, uint8_t sclPin = SGX_I2C_PIN_DEFAULT, uint8_t sdaPin = SGX_I2C_PIN_DEFAULT);
   /**
    * @fn ~DFRobot_SGX6410_Gravity_I2C
    * @brief Destructor
@@ -458,6 +469,68 @@ private:
   uint8_t   _address;
   uint8_t   _sclPin;
   uint8_t   _sdaPin;
+};
+
+class DFRobot_SGX6410_Gravity_UART : public DFRobot_SGX6410_Gravity, public DFRobot_RTU {
+public:
+#if defined(ARDUINO_AVR_UNO) || defined(ESP8266)
+  /**
+   * @fn DFRobot_SGX6410_Gravity_UART
+   * @brief Constructor (UNO/ESP8266 uses SoftwareSerial)
+   * @param sSerial SoftwareSerial object pointer
+   * @param baud Baud rate, default 9600
+   * @param addr Modbus slave address, 0x52 or 0x53, default 0x53
+   * @n ADD_SEL low selects 0x52, ADD_SEL high selects 0x53. The switch is latched at module power-up.
+   * @n COM_SEL must be UART. Default line settings are 9600 8N1.
+   */
+  DFRobot_SGX6410_Gravity_UART(SoftwareSerial *sSerial, uint32_t baud = SGX_UART_BAUD_DEFAULT, uint8_t addr = SGX_ADDR_DEFAULT);
+#else
+  /**
+   * @fn DFRobot_SGX6410_Gravity_UART
+   * @brief Constructor (HardwareSerial)
+   * @param hSerial HardwareSerial object pointer, typically &Serial1
+   * @param baud Baud rate, default 9600
+   * @param addr Modbus slave address, 0x52 or 0x53, default 0x53
+   * @param rxPin RX pin, 0 means the board default RX
+   * @param txPin TX pin, 0 means the board default TX
+   * @n ADD_SEL low selects 0x52, ADD_SEL high selects 0x53. The switch is latched at module power-up.
+   * @n COM_SEL must be UART. Default line settings are 9600 8N1.
+   * @n ESP32: pass rxPin/txPin to remap Serial1, or omit them to use the board default pins.
+   */
+  DFRobot_SGX6410_Gravity_UART(HardwareSerial *hSerial, uint32_t baud = SGX_UART_BAUD_DEFAULT, uint8_t addr = SGX_ADDR_DEFAULT, uint8_t rxPin = 0, uint8_t txPin = 0);
+#endif
+  /**
+   * @fn ~DFRobot_SGX6410_Gravity_UART
+   * @brief Destructor
+   */
+  ~DFRobot_SGX6410_Gravity_UART();
+
+  /**
+   * @fn begin
+   * @brief Initialize UART and then verify the module
+   * @return bool
+   * @retval true  Initialization successful
+   * @retval false Initialization failed
+   * @n Opens the injected serial port at the constructor baud rate, sets the Modbus RTU timeout, then runs the base begin() VID check.
+   * @n On ESP32, custom RX/TX from the constructor are applied here.
+   */
+  bool begin(void);
+
+protected:
+  uint8_t writeReg(uint16_t reg, void *data, uint8_t len);
+  uint8_t readReg(uint16_t reg, void *data, uint8_t len, eRegType_t regType = eInputReg);
+  eCommMode_t getCommMode(void);
+
+private:
+#if defined(ARDUINO_AVR_UNO) || defined(ESP8266)
+  SoftwareSerial * _serial;
+#else
+  HardwareSerial * _serial;
+#endif
+  uint32_t _baud;
+  uint8_t  _rxPin;
+  uint8_t  _txPin;
+  uint8_t  _deviceAddr;
 };
 
 #endif

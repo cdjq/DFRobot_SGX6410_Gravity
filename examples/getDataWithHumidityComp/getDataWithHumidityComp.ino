@@ -13,37 +13,83 @@
 
 #include "DFRobot_SGX6410_Gravity.h"
 
+/* Select one communication interface (uncomment exactly one) */
+#define SGX6410_COMM_UART
+// #define SGX6410_COMM_I2C
+
+const uint8_t DEVICE_ADDR = SGX_ADDR_DEFAULT;    // ADD_SEL low = 0x52, ADD_SEL high = 0x53
+
+#if defined(SGX6410_COMM_UART)
+/* ---------------------------------------------------------------------------------------------------------
+ * Hardware connection table:
+ *    Sensor Pin |        MCU Pin        | Leonardo/Mega2560/M0 |    UNO    | ESP8266 | ESP32 |  microbit  |
+ *     VCC       |          5V           |         5V           |    5V     |   5V    |  5V   |     X      |
+ *     GND       |         GND           |        GND           |    GND    |   GND   |  GND  |     X      |
+ *     RX        |        MCU TX         |     Serial1 TX1      |     3     |    3    |  17   |     X      |
+ *     TX        |        MCU RX         |     Serial1 RX1      |     2     |    2    |  16   |     X      |
+ * ---------------------------------------------------------------------------------------------------------*/
+/* Baud rate must match the module (default 9600 8N1). SoftSerial may be unstable at high baud rates. */
+/* COM_SEL must be UART. */
+#if defined(ARDUINO_AVR_UNO) || defined(ESP8266)
+#include <SoftwareSerial.h>
+SoftwareSerial mySerial(2, 3);    // RX=2, TX=3
+DFRobot_SGX6410_Gravity_UART sgx6410(&mySerial, SGX_UART_BAUD_DEFAULT, DEVICE_ADDR);
+#elif defined(ESP32)
+DFRobot_SGX6410_Gravity_UART sgx6410(&Serial1, SGX_UART_BAUD_DEFAULT, DEVICE_ADDR, /*RX pin*/ 16, /*TX pin*/ 17);
+#elif defined(ARDUINO_BBC_MICROBIT) && !defined(ARDUINO_BBC_MICROBIT_V2)
+#error "BBC micro:bit has no usable USART/Serial1. Use I2C."
+#else
+DFRobot_SGX6410_Gravity_UART sgx6410(&Serial1, SGX_UART_BAUD_DEFAULT, DEVICE_ADDR);
+#endif
+#elif defined(SGX6410_COMM_I2C)
 /**
  * I2C address: ADD_SEL low = 0x52, ADD_SEL high = 0x53 (default)
  * ESP32/ESP8266 can also pass SCL/SDA. UNO should omit pin arguments.
+ * COM_SEL must be I2C.
  */
-const uint8_t I2C_ADDR = SGX_I2C_ADDR_DEFAULT;
-DFRobot_SGX6410_Gravity_I2C sgx6410(&Wire, I2C_ADDR);
+DFRobot_SGX6410_Gravity_I2C sgx6410(&Wire, DEVICE_ADDR);
+#else
+#error "Please define SGX6410_COMM_UART or SGX6410_COMM_I2C (exactly one)"
+#endif
 
 void setup()
 {
+  // Open the debug serial port
   Serial.begin(115200);
   while (!Serial) {
     delay(10);
   }
-  Serial.println("Gravity SGX6410 getDataWithHumidityComp");
-  Serial.flush();
 
+  // Initialize the module and verify VID 0x3343
   while (sgx6410.begin() != true) {
-    Serial.println("Init failed, check I2C address and wiring");
+    Serial.println("Init failed, check address, COM_SEL and wiring");
     Serial.flush();
     delay(1000);
   }
-  Serial.println("Init success");
 
-  Serial.print("VID=0x");
+  // IAQ: about 3 s sample period, 5 min warm-up
+  while (sgx6410.setOperationMode(DFRobot_SGX6410_Gravity::eIaq) != true) {
+    Serial.println("Set IAQ mode failed");
+    delay(1000);
+  }
+
+  // Let the bridge read SHT40 and write humidity to SGX6410
+  while (sgx6410.setAutoHumiCompensation(DFRobot_SGX6410_Gravity::eHumCompEnable) != true) {
+    Serial.println("Enable humidity compensation failed");
+    delay(1000);
+  }
+
+  // Print module identity after init
+  Serial.println("======== Gravity SGX6410 getDataWithHumidityComp ========");
+  Serial.print("Init      : ");
+  Serial.println("OK");
+  Serial.print("VID       : 0x");
   Serial.println(sgx6410.getVid(), HEX);
-  Serial.print("SGX PID=0x");
+  Serial.print("SGX PID   : 0x");
   Serial.println(sgx6410.getSgxProductId(), HEX);
-
+  Serial.print("Tracking  : ");
   uint8_t tracking[6] = {0, 0, 0, 0, 0, 0};
   if (sgx6410.getTrackingNumber(tracking)) {
-    Serial.print("Tracking=");
     for (uint8_t i = 0; i < 6; i++) {
       if (tracking[i] < 0x10) {
         Serial.print("0");
@@ -53,30 +99,26 @@ void setup()
         Serial.print(" ");
       }
     }
-    Serial.println();
   }
-
-  while (sgx6410.setOperationMode(DFRobot_SGX6410_Gravity::eIaq) != true) {
-    Serial.println("Set IAQ mode failed");
-    delay(1000);
-  }
-  Serial.println("IAQ mode set");
-
-  while (sgx6410.setHumidityCompEnable(DFRobot_SGX6410_Gravity::eHumCompEnable) != true) {
-    Serial.println("Enable humidity compensation failed");
-    delay(1000);
-  }
-  Serial.println("Humidity compensation enabled");
+  Serial.println();
+  Serial.print("Mode      : ");
+  Serial.println("IAQ");
+  Serial.print("HumComp   : ");
+  Serial.println("ON");
+  Serial.println("==========================================================");
 }
 
 void loop()
 {
+  // update() reads the measurement registers and scales them
   if (sgx6410.update()) {
     const DFRobot_SGX6410_Gravity::sGasData_t &data = sgx6410.getAllGasData();
+    // Skip if the bridge has not published a new sample
     if (!data.isNew) {
       delay(500);
       return;
     }
+    // Print gas data and the SHT40 cache (NAN until the first compensation cycle)
     Serial.print("Humidity comp enable=");
     Serial.println((uint16_t)sgx6410.getHumidityCompEnable());
     Serial.print("Mode:     0x");

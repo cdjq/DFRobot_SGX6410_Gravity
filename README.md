@@ -1,7 +1,7 @@
 # DFRobot_SGX6410_Gravity
 - [中文版](./README_CN.md)
 
-DFRobot_SGX6410_Gravity is the Arduino library for the Gravity MEMS Air Quality Sensor based on SGX6410. The host talks to a CS32L010 bridge, not to the SGX6410 or SHT40 chips directly. This release implements the external I2C 16-bit little-endian register map used by the module firmware.
+DFRobot_SGX6410_Gravity is the Arduino library for the Gravity MEMS Air Quality Sensor based on SGX6410. The host talks to a CS32L010 bridge, not to the SGX6410 or SHT40 chips directly. This release implements the external I2C 16-bit little-endian register map and UART Modbus RTU used by the module firmware.
 
 The module reports IAQ, TVOC, ethanol equivalent, estimated CO2 and relative IAQ, and can apply humidity compensation from a manual %RH value or from the on-board SHT40.
 
@@ -22,23 +22,60 @@ SKU: SEN0771
 
 ## Summary
 
-* Supports Gravity SGX6410 module over I2C (7-bit address 0x52 or 0x53)
+* Supports Gravity SGX6410 module over I2C or UART Modbus RTU (address 0x52 or 0x53, default UART 9600 8N1)
 * Verifies DFRobot vendor ID 0x3343 at begin()
 * Configures SGX6410 modes: Suspend, IAQ, ULP, PBAQ, and one-time sensor clean (0x80)
 * Reads scaled IAQ, TVOC, ETOH, eCO2 and RelIAQ
 * Writes manual humidity compensation codes (0-255 from 0-100 %RH)
 * Enables or disables automatic SHT40 humidity compensation on the bridge
-* Reads module VID/PID/firmware version, latched I2C address, SGX6410 product ID and tracking number
+* Reads module VID/PID/firmware version, latched slave address, SGX6410 product ID and tracking number
 * Reads on-board SHT40 temperature and humidity after humidity compensation is enabled
 
 ## Installation
 
 * Search `DFRobot_SGX6410_Gravity` in the Arduino IDE Library Manager and install it.
 * Or download this repository, unzip it into the Arduino `libraries` folder, then open an example from `examples`.
+* UART / Modbus RTU also requires the `DFRobot_RTU` library.
 
 ## Methods
 
 ```C++
+  /**
+   * @fn DFRobot_SGX6410_Gravity_UART
+   * @brief Constructor (UNO/ESP8266 uses SoftwareSerial)
+   * @param sSerial SoftwareSerial object pointer
+   * @param baud Baud rate, default 9600
+   * @param addr Modbus slave address, 0x52 or 0x53, default 0x53
+   * @n ADD_SEL low selects 0x52, ADD_SEL high selects 0x53. The switch is latched at module power-up.
+   * @n COM_SEL must be UART. Default line settings are 9600 8N1.
+   */
+  DFRobot_SGX6410_Gravity_UART(SoftwareSerial *sSerial, uint32_t baud = SGX_UART_BAUD_DEFAULT, uint8_t addr = SGX_ADDR_DEFAULT);
+
+  /**
+   * @fn DFRobot_SGX6410_Gravity_UART
+   * @brief Constructor (HardwareSerial)
+   * @param hSerial HardwareSerial object pointer, typically &Serial1
+   * @param baud Baud rate, default 9600
+   * @param addr Modbus slave address, 0x52 or 0x53, default 0x53
+   * @param rxPin RX pin, 0 means the board default RX
+   * @param txPin TX pin, 0 means the board default TX
+   * @n ADD_SEL low selects 0x52, ADD_SEL high selects 0x53. The switch is latched at module power-up.
+   * @n COM_SEL must be UART. Default line settings are 9600 8N1.
+   * @n ESP32: pass rxPin/txPin to remap Serial1, or omit them to use the board default pins.
+   */
+  DFRobot_SGX6410_Gravity_UART(HardwareSerial *hSerial, uint32_t baud = SGX_UART_BAUD_DEFAULT, uint8_t addr = SGX_ADDR_DEFAULT, uint8_t rxPin = 0, uint8_t txPin = 0);
+
+  /**
+   * @fn begin
+   * @brief Initialize UART and then verify the module
+   * @return bool
+   * @retval true  Initialization successful
+   * @retval false Initialization failed
+   * @n Opens the injected serial port at the constructor baud rate, sets the Modbus RTU timeout, then runs the base begin() VID check.
+   * @n On ESP32, custom RX/TX from the constructor are applied here.
+   */
+  bool begin(void);
+
   /**
    * @fn DFRobot_SGX6410_Gravity_I2C
    * @brief Constructor
@@ -50,7 +87,7 @@ SKU: SEN0771
    * @n ESP32/ESP8266: pass sclPin/sdaPin to remap I2C, or omit them to use the board default pins.
    * @n UNO and other boards with fixed Wire pins: omit sclPin/sdaPin; they are ignored in begin().
    */
-  DFRobot_SGX6410_Gravity_I2C(TwoWire *pWire, uint8_t addr = SGX_I2C_ADDR_DEFAULT, uint8_t sclPin = SGX_I2C_PIN_DEFAULT, uint8_t sdaPin = SGX_I2C_PIN_DEFAULT);
+  DFRobot_SGX6410_Gravity_I2C(TwoWire *pWire, uint8_t addr = SGX_ADDR_DEFAULT, uint8_t sclPin = SGX_I2C_PIN_DEFAULT, uint8_t sdaPin = SGX_I2C_PIN_DEFAULT);
 
   /**
    * @fn begin
@@ -143,7 +180,7 @@ SKU: SEN0771
   float getHumidityCompensate(void);
 
   /**
-   * @fn setHumidityCompEnable
+   * @fn setAutoHumiCompensation
    * @brief Enable or disable automatic SHT40 humidity compensation on the bridge
    * @param enable Compensation switch (see eHumComp_t)
    * @n eHumCompDisable: stop SHT40 reads; SGX6410 keeps the last humidity code
@@ -153,7 +190,7 @@ SKU: SEN0771
    * @retval true  Write successful
    * @retval false Invalid value or write failed
    */
-  bool setHumidityCompEnable(eHumComp_t enable);
+  bool setAutoHumiCompensation(eHumComp_t enable);
 
   /**
    * @fn getHumidityCompEnable
@@ -192,7 +229,8 @@ SKU: SEN0771
    * @fn getDeviceAddr
    * @brief Read the latched external slave address
    * @return uint8_t 7-bit address, 0x52 or 0x53
-   * @n DIP ADD_SEL is sampled at power-up. Changing the switch at run time does not take effect until reset.
+   * @n DIP ADD_SEL is sampled at power-up and is also the Modbus slave address in UART mode.
+   * @n Changing the switch at run time does not take effect until reset.
    * @n Returns 0 when the read fails.
    */
   uint8_t getDeviceAddr(void);
@@ -255,7 +293,7 @@ SKU: SEN0771
    * @brief Read on-board SHT40 temperature and humidity from the Gravity bridge cache
    * @return sSHT40Data_t & Cached temperature (C) and humidity (%RH)
    * @n Gravity-only API. The host does not talk to SHT40 directly.
-   * @n Firmware reads SHT40 only after setHumidityCompEnable(eHumCompEnable).
+   * @n Firmware reads SHT40 only after setAutoHumiCompensation(eHumCompEnable).
    * @n If compensation is off, or no valid sample has been cached yet, temperature and humidity are NAN.
    * @n Temperature = -45 + 175 * raw / 65535. Humidity = -6 + 125 * raw / 65535.
    */

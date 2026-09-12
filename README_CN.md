@@ -1,7 +1,7 @@
 # DFRobot_SGX6410_Gravity
 - [English Version](./README.md)
 
-DFRobot_SGX6410_Gravity 是 Gravity MEMS 空气质量传感器（SGX6410）的 Arduino 库。主机只访问 CS32L010 桥接 MCU，不直接访问 SGX6410 或 SHT40。本版本实现模块固件使用的外部 I2C 16 位小端寄存器表。
+DFRobot_SGX6410_Gravity 是 Gravity MEMS 空气质量传感器（SGX6410）的 Arduino 库。主机只访问 CS32L010 桥接 MCU，不直接访问 SGX6410 或 SHT40。本版本实现模块固件使用的外部 I2C 16 位小端寄存器表和 UART Modbus RTU。
 
 模块可输出 IAQ、TVOC、乙醇当量、估计 CO2 和相对 IAQ，并支持手动写入湿度补偿，或由板载 SHT40 自动补偿。
 
@@ -22,23 +22,60 @@ SKU: SEN0771
 
 ## 概述
 
-* 通过 I2C 访问 Gravity SGX6410 模块（7 位地址 0x52 或 0x53）
+* 通过 I2C 或 UART Modbus RTU 访问 Gravity SGX6410 模块（地址 0x52 或 0x53，UART 默认 9600 8N1）
 * begin() 校验 DFRobot VID 0x3343
 * 配置 SGX6410 模式：Suspend、IAQ、ULP、PBAQ，以及一生一次的传感器清洁（0x80）
 * 读取换算后的 IAQ、TVOC、ETOH、eCO2、RelIAQ
 * 写入手动湿度补偿码（由 0-100 %RH 转为 0-255）
 * 开关桥接板上的 SHT40 自动湿度补偿
-* 读取模块 VID/PID/固件版本、锁存的 I2C 地址、SGX6410 产品 ID 和序列号
+* 读取模块 VID/PID/固件版本、锁存的从机地址、SGX6410 产品 ID 和序列号
 * 在打开湿度补偿后读取板载 SHT40 温度和湿度
 
 ## 库安装
 
 * 在 Arduino IDE 库管理器中搜索 `DFRobot_SGX6410_Gravity` 并安装。
 * 或下载本仓库，解压到 Arduino 的 `libraries` 目录，再打开 `examples` 中的示例。
+* UART / Modbus RTU 还需要安装 `DFRobot_RTU` 库。
 
 ## 方法
 
 ```C++
+  /**
+   * @fn DFRobot_SGX6410_Gravity_UART
+   * @brief 构造函数（UNO/ESP8266 使用 SoftwareSerial）
+   * @param sSerial SoftwareSerial 对象指针
+   * @param baud 波特率，默认 9600
+   * @param addr Modbus 从机地址，0x52 或 0x53，默认 0x53
+   * @n ADD_SEL 低电平选择 0x52，高电平选择 0x53。拨码在模块上电时锁存。
+   * @n COM_SEL 必须拨到 UART。默认串口参数为 9600 8N1。
+   */
+  DFRobot_SGX6410_Gravity_UART(SoftwareSerial *sSerial, uint32_t baud = SGX_UART_BAUD_DEFAULT, uint8_t addr = SGX_ADDR_DEFAULT);
+
+  /**
+   * @fn DFRobot_SGX6410_Gravity_UART
+   * @brief 构造函数（HardwareSerial）
+   * @param hSerial HardwareSerial 对象指针，通常为 &Serial1
+   * @param baud 波特率，默认 9600
+   * @param addr Modbus 从机地址，0x52 或 0x53，默认 0x53
+   * @param rxPin RX 引脚，0 表示使用板级默认 RX
+   * @param txPin TX 引脚，0 表示使用板级默认 TX
+   * @n ADD_SEL 低电平选择 0x52，高电平选择 0x53。拨码在模块上电时锁存。
+   * @n COM_SEL 必须拨到 UART。默认串口参数为 9600 8N1。
+   * @n ESP32：传入 rxPin/txPin 可改 Serial1 引脚，省略则用板级默认脚。
+   */
+  DFRobot_SGX6410_Gravity_UART(HardwareSerial *hSerial, uint32_t baud = SGX_UART_BAUD_DEFAULT, uint8_t addr = SGX_ADDR_DEFAULT, uint8_t rxPin = 0, uint8_t txPin = 0);
+
+  /**
+   * @fn begin
+   * @brief 初始化 UART 并校验模块
+   * @return bool
+   * @retval true  初始化成功
+   * @retval false 初始化失败
+   * @n 按构造函数波特率打开注入的串口，设置 Modbus RTU 超时，再执行基类 begin() 的 VID 检查。
+   * @n ESP32 会在此处应用构造函数里的自定义 RX/TX。
+   */
+  bool begin(void);
+
   /**
    * @fn DFRobot_SGX6410_Gravity_I2C
    * @brief 构造函数
@@ -50,7 +87,7 @@ SKU: SEN0771
    * @n ESP32/ESP8266：传入 sclPin/sdaPin 可改 I2C 引脚，省略则用板级默认脚。
    * @n UNO 等固定 Wire 引脚的主板：不要传 sclPin/sdaPin，begin() 会忽略这两个参数。
    */
-  DFRobot_SGX6410_Gravity_I2C(TwoWire *pWire, uint8_t addr = SGX_I2C_ADDR_DEFAULT, uint8_t sclPin = SGX_I2C_PIN_DEFAULT, uint8_t sdaPin = SGX_I2C_PIN_DEFAULT);
+  DFRobot_SGX6410_Gravity_I2C(TwoWire *pWire, uint8_t addr = SGX_ADDR_DEFAULT, uint8_t sclPin = SGX_I2C_PIN_DEFAULT, uint8_t sdaPin = SGX_I2C_PIN_DEFAULT);
 
   /**
    * @fn begin
@@ -142,7 +179,7 @@ SKU: SEN0771
   float getHumidityCompensate(void);
 
   /**
-   * @fn setHumidityCompEnable
+   * @fn setAutoHumiCompensation
    * @brief 打开或关闭桥接板上的 SHT40 自动湿度补偿
    * @param enable 补偿开关（见 eHumComp_t）
    * @n eHumCompDisable: 停止读取 SHT40；SGX6410 保留最后一次湿度码
@@ -152,7 +189,7 @@ SKU: SEN0771
    * @retval true  写入成功
    * @retval false 非法值或写入失败
    */
-  bool setHumidityCompEnable(eHumComp_t enable);
+  bool setAutoHumiCompensation(eHumComp_t enable);
 
   /**
    * @fn getHumidityCompEnable
@@ -191,7 +228,8 @@ SKU: SEN0771
    * @fn getDeviceAddr
    * @brief 读取已锁存的外部从机地址
    * @return uint8_t 7 位地址，0x52 或 0x53
-   * @n 拨码 ADD_SEL 在上电时采样。运行中拨动开关需复位后才生效。
+   * @n 拨码 ADD_SEL 在上电时采样，UART 模式下同时作为 Modbus 从机地址。
+   * @n 运行中拨动开关需复位后才生效。
    * @n 读取失败时返回 0。
    */
   uint8_t getDeviceAddr(void);
@@ -254,7 +292,7 @@ SKU: SEN0771
    * @brief 读取板载 SHT40 温湿度（Gravity 桥接缓存）
    * @return sSHT40Data_t & 缓存的温度（C）和湿度（%RH）
    * @n Gravity 版本专用 API。主机不直接访问 SHT40。
-   * @n 固件仅在 setHumidityCompEnable(eHumCompEnable) 之后才会读取 SHT40。
+   * @n 固件仅在 setAutoHumiCompensation(eHumCompEnable) 之后才会读取 SHT40。
    * @n 若补偿关闭，或尚未缓存到有效样本，temperature 和 humidity 为 NAN。
    * @n 温度 = -45 + 175 * raw / 65535。湿度 = -6 + 125 * raw / 65535。
    */

@@ -1,7 +1,7 @@
 /*!
  * @file DFRobot_SGX6410_Gravity.cpp
  * @brief Implement the DFRobot Gravity SGX6410 air quality module API
- * @details Implements I2C 16-bit little-endian register access and measurement scaling.
+ * @details Implements I2C 16-bit little-endian register access, UART Modbus RTU, and measurement scaling.
  * @copyright Copyright (c) 2026 DFRobot Co.Ltd (http://www.dfrobot.com)
  * @license The MIT License (MIT)
  * @author PLELES(li.jia@dfrobot.com)
@@ -14,7 +14,7 @@
 
 DFRobot_SGX6410_Gravity::DFRobot_SGX6410_Gravity(void)
 {
-  _mode          = eSuspend;
+  _mode           = eSuspend;
   _gasData.IAQ    = NAN;
   _gasData.TVOC   = NAN;
   _gasData.ETOH   = NAN;
@@ -197,7 +197,7 @@ float DFRobot_SGX6410_Gravity::getHumidityCompensate(void)
   return ((float)(raw & 0xFF) * 100.0f) / 255.0f;
 }
 
-bool DFRobot_SGX6410_Gravity::setHumidityCompEnable(eHumComp_t enable)
+bool DFRobot_SGX6410_Gravity::setAutoHumiCompensation(eHumComp_t enable)
 {
   if ((enable != eHumCompDisable) && (enable != eHumCompEnable)) {
     DBG("Invalid humidity compensation switch");
@@ -401,7 +401,7 @@ bool DFRobot_SGX6410_Gravity_I2C::begin(void)
 #elif defined(ARDUINO_ARCH_ESP8266)
   _pWire->setClockStretchLimit(150000);
 #elif defined(WIRE_HAS_TIMEOUT)
-  _pWire->setWireTimeout(25000, true);
+  _pWire->setWireTimeout(1000, true);
 #endif
   return DFRobot_SGX6410_Gravity::begin();
 }
@@ -446,6 +446,85 @@ uint8_t DFRobot_SGX6410_Gravity_I2C::readReg(uint16_t reg, void *data, uint8_t l
   }
   for (uint8_t i = 0; i < len; i++) {
     pData[i] = _pWire->read();
+  }
+  return RET_CODE_OK;
+}
+
+#if defined(ARDUINO_AVR_UNO) || defined(ESP8266)
+DFRobot_SGX6410_Gravity_UART::DFRobot_SGX6410_Gravity_UART(SoftwareSerial *sSerial, uint32_t baud, uint8_t addr) : DFRobot_RTU(sSerial), _serial(sSerial), _baud(baud), _rxPin(0), _txPin(0), _deviceAddr(addr) {}
+#else
+DFRobot_SGX6410_Gravity_UART::DFRobot_SGX6410_Gravity_UART(HardwareSerial *hSerial, uint32_t baud, uint8_t addr, uint8_t rxPin, uint8_t txPin) : DFRobot_RTU(hSerial), _serial(hSerial), _baud(baud), _rxPin(rxPin), _txPin(txPin), _deviceAddr(addr) {}
+#endif
+
+DFRobot_SGX6410_Gravity_UART::~DFRobot_SGX6410_Gravity_UART() {}
+
+DFRobot_SGX6410_Gravity::eCommMode_t DFRobot_SGX6410_Gravity_UART::getCommMode(void)
+{
+  return DFRobot_SGX6410_Gravity::eCommModeUART;
+}
+
+bool DFRobot_SGX6410_Gravity_UART::begin(void)
+{
+#if defined(ARDUINO_AVR_UNO) || defined(ESP8266)
+  _serial->begin(_baud);
+#elif defined(ESP32)
+  if ((_rxPin != 0) && (_txPin != 0)) {
+    _serial->begin(_baud, SERIAL_8N1, _rxPin, _txPin);
+  } else {
+    _serial->begin(_baud);
+  }
+#else
+  _serial->begin(_baud);
+#endif
+  setTimeoutTimeMs(500);
+  return DFRobot_SGX6410_Gravity::begin();
+}
+
+uint8_t DFRobot_SGX6410_Gravity_UART::writeReg(uint16_t reg, void *data, uint8_t len)
+{
+  uint8_t *pData = (uint8_t *)data;
+
+  if ((data == NULL) || (len == 0) || ((len % 2) != 0)) {
+    DBG("UART writeReg: invalid parameters");
+    return RET_CODE_ERROR;
+  }
+
+  for (uint8_t i = 0; i < (len / 2); i++) {
+    uint16_t value  = (uint16_t)pData[i * 2] | ((uint16_t)pData[i * 2 + 1] << 8);
+    uint8_t  result = writeHoldingRegister(_deviceAddr, (uint16_t)(reg + i), value);
+    if (result != 0) {
+      DBG("UART writeReg failed");
+      return RET_CODE_ERROR;
+    }
+  }
+  return RET_CODE_OK;
+}
+
+uint8_t DFRobot_SGX6410_Gravity_UART::readReg(uint16_t reg, void *data, uint8_t len, eRegType_t regType)
+{
+  uint8_t *pData = (uint8_t *)data;
+  uint8_t  regCount;
+  uint8_t  i;
+
+  if ((data == NULL) || (len == 0)) {
+    DBG("UART readReg: invalid parameters");
+    return RET_CODE_ERROR;
+  }
+
+  regCount = (uint8_t)((len + 1) / 2);
+  for (i = 0; i < regCount; i++) {
+    uint16_t value = 0;
+    if (regType == eInputReg) {
+      value = readInputRegister(_deviceAddr, (uint16_t)(reg + i));
+    } else {
+      value = readHoldingRegister(_deviceAddr, (uint16_t)(reg + i));
+    }
+    if ((uint8_t)(i * 2) < len) {
+      pData[i * 2] = (uint8_t)(value & 0xFF);
+    }
+    if ((uint8_t)(i * 2 + 1) < len) {
+      pData[i * 2 + 1] = (uint8_t)((value >> 8) & 0xFF);
+    }
   }
   return RET_CODE_OK;
 }
