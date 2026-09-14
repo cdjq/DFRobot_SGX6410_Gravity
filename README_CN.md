@@ -1,9 +1,11 @@
 # DFRobot_SGX6410_Gravity
 - [English Version](./README.md)
 
-DFRobot_SGX6410_Gravity 是 Gravity MEMS 空气质量传感器（SGX6410）的 Arduino 库。主机只访问 CS32L010 桥接 MCU，不直接访问 SGX6410 或 SHT40。本版本实现模块固件使用的外部 I2C 16 位小端寄存器表和 UART Modbus RTU。
+DFRobot_SGX6410_Gravity 是 Gravity MEMS 空气质量传感器（SKU: SEN0771）的 Arduino 库。模块基于 SGX6410 气体传感器评估室内空气质量，可输出 IAQ、TVOC、乙醇当量（ETOH）、估计 CO2（eCO2）和相对 IAQ（RelIAQ）。板载 SHT40 可提供温湿度，用于自动湿度补偿。
 
-模块可输出 IAQ、TVOC、乙醇当量、估计 CO2 和相对 IAQ，并支持手动写入湿度补偿，或由板载 SHT40 自动补偿。
+主机通过 I2C 或 UART Modbus RTU 与 Gravity 模块通信，不会在总线上直接访问 SGX6410 或 SHT40。I2C 使用 16 位小端寄存器表；UART 默认 9600 8N1。从机地址为 `0x52` 或 `0x53`，由 ADD_SEL 在上电时锁存；COM_SEL 用于选择 I2C 或 UART。
+
+典型流程：调用 `begin()` 校验 DFRobot 厂商 ID（`0x3343`），设置工作模式（IAQ / ULP / PBAQ / Suspend），等待预热完成（`valid` 为 true），再调用 `update()` 读取缓存的气体数据。湿度可按 0–100 %RH 手动写入，也可在打开自动补偿后由模块按约 60 s 周期用 SHT40 更新。
 
 ## 产品链接
 
@@ -22,14 +24,14 @@ SKU: SEN0771
 
 ## 概述
 
-* 通过 I2C 或 UART Modbus RTU 访问 Gravity SGX6410 模块（地址 0x52 或 0x53，UART 默认 9600 8N1）
-* begin() 校验 DFRobot VID 0x3343
-* 配置 SGX6410 模式：Suspend、IAQ、ULP、PBAQ，以及一生一次的传感器清洁（0x80）
-* 读取换算后的 IAQ、TVOC、ETOH、eCO2、RelIAQ
-* 写入手动湿度补偿码（由 0-100 %RH 转为 0-255）
-* 开关桥接板上的 SHT40 自动湿度补偿
-* 读取模块 VID/PID/固件版本、锁存的从机地址、SGX6410 产品 ID 和序列号
-* 在打开湿度补偿后读取板载 SHT40 温度和湿度
+* 双接口：I2C（16 位小端寄存器）或 UART Modbus RTU（保持寄存器 `0x03`/`0x06`，输入寄存器 `0x04`），地址 `0x52` / `0x53`
+* UART 默认 9600 8N1。ADD_SEL 在上电时锁存，UART 模式下同时作为 Modbus 从机地址
+* `begin()` 校验 DFRobot 厂商 ID `0x3343`，随后可读取模块 PID、固件版本、锁存地址、SGX6410 产品 ID（`0x2310`）和 6 字节序列号
+* 工作模式：Suspend；IAQ（约 3 s 采样，预热约 5 min）；ULP（约 90 s 采样，预热约 15 min）；PBAQ（约 5 s 采样，预热约 5 min）
+* `update()` 按模式换算：IAQ/ULP 为 IAQ=raw/10、TVOC=raw/100 mg/m³、ETOH=raw/100 ppm、eCO2=raw ppm、RelIAQ=raw/10；PBAQ 仅输出 TVOC/ETOH（raw/1000），其余为 NAN
+* 手动湿度补偿：写入 0–100 %RH（内部存为 0–255 码）。打开自动补偿后，模块约每 60 s 用 SHT40 刷新该值
+* 自动补偿打开后，`getSHT40Data()` 可读取板载温度（°C）和湿度（%RH）
+* 一个生命周期一次的热清洁通过 `runSensorClean()` 执行（约 60 s），清洁过程中请保持供电稳定
 
 ## 库安装
 
@@ -112,7 +114,7 @@ SKU: SEN0771
 
   /**
    * @fn reset
-   * @brief 向桥接器发送传感器复位命令
+   * @brief 向模块发送传感器复位命令
    * @return bool
    * @retval true  写入成功
    * @retval false 写入失败
@@ -129,7 +131,7 @@ SKU: SEN0771
    * @n eIaq: IAQ 第二代，采样周期约 3 s，预热 5 min
    * @n eUlp: 超低功耗，采样周期约 90 s，预热 15 min
    * @n ePbaq: PBAQ，采样周期约 5 s，预热 5 min
-   * @n 改模式属于维护操作。桥接器会重新预热并清除 isNew/valid。
+   * @n 改模式属于维护操作。模块会重新预热并清除 isNew/valid。
    * @n 传感器清洁 0x80 应通过 runSensorClean() 启动，不要反复调用。
    * @return bool
    * @retval true  设置成功
@@ -162,7 +164,7 @@ SKU: SEN0771
    * @param rh 相对湿度，范围 0.0 到 100.0，单位 %RH
    * @n 主机将 rh 转为 code = round(rh * 255 / 100)，写入 0-255 湿度码。
    * @n 这是手动写入，不会打开板载 SHT40 通道。
-   * @n 若自动补偿已打开，桥接器可能在下一次 SHT40 周期覆盖该值。
+   * @n 若自动补偿已打开，模块可能在下一次 SHT40 周期覆盖该值。
    * @return bool
    * @retval true  写入成功
    * @retval false rh 超范围或写入失败
@@ -180,7 +182,7 @@ SKU: SEN0771
 
   /**
    * @fn setAutoHumiCompensation
-   * @brief 打开或关闭桥接板上的 SHT40 自动湿度补偿
+   * @brief 打开或关闭模块上的 SHT40 自动湿度补偿
    * @param enable 补偿开关（见 eHumComp_t）
    * @n eHumCompDisable: 停止读取 SHT40；SGX6410 保留最后一次湿度码
    * @n eHumCompEnable: 立即读一次 SHT40，之后约每 60 s 一次
@@ -261,7 +263,7 @@ SKU: SEN0771
    * @n 调用 getAllGasData() / getSingleGasData() 前必须先调用本函数。
    * @n IAQ/ULP：IAQ = raw/10，TVOC = raw/100 mg/m3，ETOH = raw/100 ppm，ECO2 = raw ppm，RELIAQ = raw/10
    * @n PBAQ：TVOC = raw/1000 mg/m3，ETOH = raw/1000 ppm；IAQ、ECO2、RELIAQ 为 NAN
-   * @n isNew 与 valid 由桥接器给出。读到新样本后，主机将 isNew 写回 0。
+   * @n isNew 与 valid 由模块给出。读到新样本后，主机将 isNew 写回 0。
    */
   bool update(void);
 

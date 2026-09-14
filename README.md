@@ -1,9 +1,11 @@
 # DFRobot_SGX6410_Gravity
 - [中文版](./README_CN.md)
 
-DFRobot_SGX6410_Gravity is the Arduino library for the Gravity MEMS Air Quality Sensor based on SGX6410. The host talks to a CS32L010 bridge, not to the SGX6410 or SHT40 chips directly. This release implements the external I2C 16-bit little-endian register map and UART Modbus RTU used by the module firmware.
+DFRobot_SGX6410_Gravity is the Arduino library for the Gravity MEMS Air Quality Sensor (SKU: SEN0771). The module uses an SGX6410 gas sensor to estimate indoor air quality and reports IAQ, TVOC, ethanol equivalent (ETOH), estimated CO2 (eCO2), and relative IAQ (RelIAQ). An on-board SHT40 can supply temperature and humidity for automatic humidity compensation.
 
-The module reports IAQ, TVOC, ethanol equivalent, estimated CO2 and relative IAQ, and can apply humidity compensation from a manual %RH value or from the on-board SHT40.
+The host talks to the Gravity module over I2C or UART Modbus RTU, not to the SGX6410 or SHT40 chips on the bus directly. I2C uses a 16-bit little-endian register map. UART defaults to 9600 8N1. The slave address is 0x52 or 0x53, selected by ADD_SEL at power-up; COM_SEL selects I2C or UART.
+
+Typical workflow: call `begin()` to verify the DFRobot vendor ID (`0x3343`), set an operation mode (IAQ / ULP / PBAQ / Suspend), wait until warm-up completes (`valid` is true), then call `update()` and read the cached gas data. Humidity can be written manually as 0–100 %RH, or the module can refresh it from the SHT40 about every 60 s after automatic compensation is enabled.
 
 ## Product Link
 
@@ -22,14 +24,15 @@ SKU: SEN0771
 
 ## Summary
 
-* Supports Gravity SGX6410 module over I2C or UART Modbus RTU (address 0x52 or 0x53, default UART 9600 8N1)
-* Verifies DFRobot vendor ID 0x3343 at begin()
-* Configures SGX6410 modes: Suspend, IAQ, ULP, PBAQ, and one-time sensor clean (0x80)
-* Reads scaled IAQ, TVOC, ETOH, eCO2 and RelIAQ
-* Writes manual humidity compensation codes (0-255 from 0-100 %RH)
-* Enables or disables automatic SHT40 humidity compensation on the bridge
-* Reads module VID/PID/firmware version, latched slave address, SGX6410 product ID and tracking number
-* Reads on-board SHT40 temperature and humidity after humidity compensation is enabled
+* Dual interface: I2C (16-bit little-endian registers) or UART Modbus RTU (holding `0x03`/`0x06`, input `0x04`), address `0x52` / `0x53`
+* UART default line settings: 9600 8N1. ADD_SEL is latched at power-up and is also the Modbus slave address
+* `begin()` verifies DFRobot vendor ID `0x3343` and can then read module PID, firmware version, latched address, SGX6410 product ID (`0x2310`) and 6-byte tracking number
+* Operation modes: Suspend; IAQ (~3 s sample, ~5 min warm-up); ULP (~90 s sample, ~15 min warm-up); PBAQ (~5 s sample, ~5 min warm-up)
+* `update()` scales raw registers: IAQ/ULP use IAQ=raw/10, TVOC=raw/100 mg/m³, ETOH=raw/100 ppm, eCO2=raw ppm, RelIAQ=raw/10; PBAQ only reports TVOC/ETOH (raw/1000), other fields are NAN
+* Check `isNew` for a fresh sample and `valid` for warm-up completion before using the readings
+* Manual humidity compensation: write 0–100 %RH (stored as code 0–255). Automatic SHT40 compensation can refresh that value about every 60 s
+* After automatic compensation is on, `getSHT40Data()` returns on-board temperature (°C) and humidity (%RH)
+* One-time thermal clean via `runSensorClean()` (about 60 s). Do not interrupt power during clean
 
 ## Installation
 
@@ -112,7 +115,7 @@ SKU: SEN0771
 
   /**
    * @fn reset
-   * @brief Restore sensor reset command on the bridge
+   * @brief Send a sensor reset command to the module
    * @return bool
    * @retval true  Write successful
    * @retval false Write failed
@@ -129,7 +132,7 @@ SKU: SEN0771
    * @n eIaq: IAQ 2nd generation, about 3 s sample period, 5 min warm-up
    * @n eUlp: Ultra-low power, about 90 s sample period, 15 min warm-up
    * @n ePbaq: PBAQ, about 5 s sample period, 5 min warm-up
-   * @n Mode change is a maintenance action. The bridge restarts warm-up and clears isNew/valid.
+   * @n Mode change is a maintenance action. The module restarts warm-up and clears isNew/valid.
    * @n Sensor cleaning 0x80 should be started with runSensorClean(), not called repeatedly.
    * @return bool
    * @retval true  Setting successful
@@ -163,7 +166,7 @@ SKU: SEN0771
    * @param rh Relative humidity, range 0.0 to 100.0, unit %RH
    * @n Host converts rh to code = round(rh * 255 / 100) and writes the 0-255 code.
    * @n This is a manual write. It does not enable the on-board SHT40 path.
-   * @n If automatic compensation is on, the bridge may overwrite this value on the next SHT40 cycle.
+   * @n If automatic compensation is on, the module may overwrite this value on the next SHT40 cycle.
    * @return bool
    * @retval true  Write successful
    * @retval false rh out of range or write failed
@@ -181,7 +184,7 @@ SKU: SEN0771
 
   /**
    * @fn setAutoHumiCompensation
-   * @brief Enable or disable automatic SHT40 humidity compensation on the bridge
+   * @brief Enable or disable automatic SHT40 humidity compensation on the module
    * @param enable Compensation switch (see eHumComp_t)
    * @n eHumCompDisable: stop SHT40 reads; SGX6410 keeps the last humidity code
    * @n eHumCompEnable: read SHT40 immediately, then about every 60 s
@@ -262,7 +265,7 @@ SKU: SEN0771
    * @n Call this before getAllGasData() / getSingleGasData().
    * @n IAQ/ULP: IAQ = raw/10, TVOC = raw/100 mg/m3, ETOH = raw/100 ppm, ECO2 = raw ppm, RELIAQ = raw/10
    * @n PBAQ: TVOC = raw/1000 mg/m3, ETOH = raw/1000 ppm; IAQ, ECO2 and RELIAQ are NAN
-   * @n isNew and valid come from the bridge. After a new sample is read, the host writes isNew back to 0.
+   * @n isNew and valid come from the module. After a new sample is read, the host writes isNew back to 0.
    */
   bool update(void);
 
@@ -290,7 +293,7 @@ SKU: SEN0771
 
   /**
    * @fn getSHT40Data
-   * @brief Read on-board SHT40 temperature and humidity from the Gravity bridge cache
+   * @brief Read on-board SHT40 temperature and humidity from the module cache
    * @return sSHT40Data_t & Cached temperature (C) and humidity (%RH)
    * @n Gravity-only API. The host does not talk to SHT40 directly.
    * @n Firmware reads SHT40 only after setAutoHumiCompensation(eHumCompEnable).
