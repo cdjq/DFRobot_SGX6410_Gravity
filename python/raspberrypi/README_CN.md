@@ -5,7 +5,7 @@ DFRobot_SGX6410_Gravity 是 Gravity MEMS 空气质量传感器（SKU: SEN0771）
 
 主机通过 I2C 或 UART Modbus RTU 与 Gravity 模块通信，不会在总线上直接访问 SGX6410 或 SHT40。I2C 使用 16 位小端寄存器表（树莓派通常为总线 1）；UART 默认 9600 8N1，串口为 `/dev/ttyAMA0`。从机地址为 `0x52` 或 `0x53`，由 ADD_SEL 在上电时锁存；COM_SEL 用于选择 I2C 或 UART。
 
-典型流程：调用 `begin()` 校验 DFRobot 厂商 ID（`0x3343`），设置工作模式（IAQ / ULP / PBAQ / Suspend），等待预热完成（`valid` 为 true），再调用 `update()` 读取缓存的气体数据。湿度可按 0–100 %RH 手动写入，也可在打开自动补偿后由模块按约 60 s 周期用 SHT40 更新。示例里 `ctype = 0` 为 I2C，非 0 为 UART。
+典型流程：调用 `begin()` 校验 DFRobot 厂商 ID（`0x3343`），设置工作模式（IAQ / ULP / PBAQ / Suspend），等待预热完成（`valid` 为 true），再调用 `update()` 读取缓存的气体数据。湿度可按 0–100 %RH 手动写入。开启自动湿度补偿后，模块内部每 60 s 轮询一次 SHT40。示例里 `ctype = 0` 为 I2C，非 0 为 UART。
 
 ## 产品链接
 
@@ -16,6 +16,7 @@ SKU: SEN0771
 ## 目录
 
   * [概述](#概述)
+  * [不同模式下的读数](#不同模式下的读数)
   * [库安装](#库安装)
   * [方法](#方法)
   * [兼容性](#兼容性)
@@ -27,12 +28,57 @@ SKU: SEN0771
 * 双接口：I2C（`SMBus`）或 UART Modbus RTU（`/dev/ttyAMA0`，保持寄存器 `0x03`/`0x06`，输入寄存器 `0x04`），地址 `0x52` / `0x53`
 * UART 默认 9600 8N1。ADD_SEL 在上电时锁存，UART 模式下同时作为 Modbus 从机地址
 * `begin()` 校验 DFRobot 厂商 ID `0x3343`，随后可读取模块 PID、固件版本、锁存地址、SGX6410 产品 ID（`0x2310`）和 6 字节序列号
-* 工作模式：Suspend；IAQ（约 3 s 采样，预热约 5 min）；ULP（约 90 s 采样，预热约 15 min）；PBAQ（约 5 s 采样，预热约 5 min）
-* `update()` 按模式换算：IAQ/ULP 为 IAQ=raw/10、TVOC=raw/100 mg/m³、ETOH=raw/100 ppm、eCO2=raw ppm、RelIAQ=raw/10；PBAQ 仅输出 TVOC/ETOH（raw/1000），其余为 NAN
+* 工作模式：Suspend；IAQ（约 3 s 采样，预热约 5 min）；ULP（约 90 s 采样，预热约 15 min）；PBAQ（约 5 s 采样，预热约 5 min）。不同模式读到的气体字段不同，见 [不同模式下的读数](#不同模式下的读数)
 * 使用数据前请检查 `is_new`（是否新样本）和 `valid`（预热是否完成）
-* 手动湿度补偿：写入 0–100 %RH（内部存为 0–255 码）。打开自动补偿后，模块约每 60 s 用 SHT40 刷新该值
-* 自动补偿打开后，`get_sht40_data()` 可读取板载温度（°C）和湿度（%RH）
-* 一生一次的热清洁通过 `run_sensor_clean()` 执行（约 60 s），清洁过程中请保持供电稳定
+* 手动湿度补偿：写入 0–100 %RH（内部存为 0–255 码）
+* 开启自动湿度补偿后，模块内部每 60 s 轮询一次 SHT40。`get_sht40_data()` 读取的是这次缓存的温度（°C）和湿度（%RH）
+* `run_sensor_clean()` 与示例 `examples/run_sensor_clean` 一生最好只执行一次（约 60 s）。调用返回后传感器已经清洁完成，工作模式会变为 Suspend，此后不要再发送任何操作。清洁过程中请保持供电稳定。
+
+## 不同模式下的读数
+
+`update()` / `get_all_gas_data()` 并不是每个模式都会填满全部字段。IAQ、ULP 输出完整气体数据；PBAQ 只输出 TVOC 和 ETOH（换算系数也不同）；Suspend 没有测量数据，`update()` 返回 `False`。
+
+| 模式 | 线值 | 采样 / 预热 | IAQ | TVOC | ETOH | eCO2 | RelIAQ |
+| ---- | ---- | ----------- | --- | ---- | ---- | ---- | ------ |
+| IAQ | `0x01` | 约 3 s / 约 5 min | raw/10 | raw/100 mg/m³ | raw/100 ppm | raw ppm | raw/10 |
+| ULP | `0x02` | 约 90 s / 约 15 min | raw/10 | raw/100 mg/m³ | raw/100 ppm | raw ppm | raw/10 |
+| PBAQ | `0x05` | 约 5 s / 约 5 min | NAN | raw/1000 mg/m³ | raw/1000 ppm | NAN | NAN |
+| Suspend | `0x00` | — | — | — | — | — | — |
+
+IAQ / ULP 样例（`examples/get_data`，预热完成后）：
+
+```
+Humidity comp enable=0
+Mode:     0x1
+IAQ:      1.60
+TVOC:     0.41 mg/m3
+ETOH:     0.21 ppm
+ECO2:     401.0 ppm
+RELIAQ:   1.00
+Data valid: YES
+--------------------
+```
+
+ULP 字段与 IAQ 相同，只是模式行为 `Mode:     0x2`，新样本大约每 90 s 一次。
+
+PBAQ 样例（`examples/set_operation_mode`）。IAQ / eCO2 / RelIAQ 打印为 `nan`：
+
+```
+Mode:     0x5
+IAQ:      nan
+TVOC:     0.04 mg/m3
+ETOH:     0.02 ppm
+ECO2:     nan ppm
+RELIAQ:   nan
+Data valid: YES
+--------------------
+```
+
+Suspend / 无测量数据：
+
+```
+Failed to read gas data!
+```
 
 ## 库安装
 
@@ -104,7 +150,9 @@ python3 examples/get_data/get_data.py
       @brief 执行传感器热清洁：启动后轮询直到完成
       @param timeout_ms 超时时间，单位 ms，建议 >= 90000（清洁约 60 s）
       @return CLEAN_OK=0 完成 / CLEAN_DONE=1 已清洁过 / CLEAN_TIMEOUT=2 超时 / CLEAN_FAIL=3 通信失败
-      @n 一生只清洁一次。
+      @n 本 API 和 run_sensor_clean 示例一生最好只使用一次。
+      @n 调用成功返回后，传感器已经清洁完成，工作模式变为 Suspend。
+      @n 清洁结束后不要再执行任何操作。
     '''
 
   def get_operation_mode(self)
@@ -134,7 +182,7 @@ python3 examples/get_data/get_data.py
     '''!
       @brief 打开或关闭模块上的 SHT40 自动湿度补偿
       @param enable HUM_COMP_DISABLE 或 HUM_COMP_ENABLE
-      @n HUM_COMP_ENABLE：立即读一次 SHT40，之后约每 60 s 一次
+      @n HUM_COMP_ENABLE：立即读一次 SHT40，之后模块内部每 60 s 轮询一次 SHT40
       @return 成功 True，失败 False
     '''
 
@@ -206,7 +254,7 @@ python3 examples/get_data/get_data.py
     '''!
       @brief 从模块缓存读取板载 SHT40 温湿度
       @return SHT40Data 温度（C）和湿度（%RH）
-      @n 仅在 set_auto_humi_compensation(HUM_COMP_ENABLE) 之后固件才会读 SHT40。
+      @n 仅在 set_auto_humi_compensation(HUM_COMP_ENABLE) 之后固件才会读 SHT40。开启后模块内部每 60 s 轮询一次 SHT40。
     '''
 ```
 

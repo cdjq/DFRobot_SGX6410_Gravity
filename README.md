@@ -5,7 +5,7 @@ DFRobot_SGX6410_Gravity is the Arduino library for the Gravity MEMS Air Quality 
 
 The host talks to the Gravity module over I2C or UART Modbus RTU, not to the SGX6410 or SHT40 chips on the bus directly. I2C uses a 16-bit little-endian register map. UART defaults to 9600 8N1. The slave address is 0x52 or 0x53, selected by ADD_SEL at power-up; COM_SEL selects I2C or UART.
 
-Typical workflow: call `begin()` to verify the DFRobot vendor ID (`0x3343`), set an operation mode (IAQ / ULP / PBAQ / Suspend), wait until warm-up completes (`valid` is true), then call `update()` and read the cached gas data. Humidity can be written manually as 0–100 %RH, or the module can refresh it from the SHT40 about every 60 s after automatic compensation is enabled.
+Typical workflow: call `begin()` to verify the DFRobot vendor ID (`0x3343`), set an operation mode (IAQ / ULP / PBAQ / Suspend), wait until warm-up completes (`valid` is true), then call `update()` and read the cached gas data. Humidity can be written manually as 0–100 %RH. After automatic compensation is enabled, the module internally polls the SHT40 every 60 s.
 
 ## Product Link
 
@@ -16,6 +16,7 @@ SKU: SEN0771
 ## Table of Contents
 
   * [Summary](#summary)
+  * [Measurement by mode](#measurement-by-mode)
   * [Installation](#installation)
   * [Methods](#methods)
   * [Compatibility](#compatibility)
@@ -27,12 +28,57 @@ SKU: SEN0771
 * Dual interface: I2C (16-bit little-endian registers) or UART Modbus RTU (holding `0x03`/`0x06`, input `0x04`), address `0x52` / `0x53`
 * UART default line settings: 9600 8N1. ADD_SEL is latched at power-up and is also the Modbus slave address
 * `begin()` verifies DFRobot vendor ID `0x3343` and can then read module PID, firmware version, latched address, SGX6410 product ID (`0x2310`) and 6-byte tracking number
-* Operation modes: Suspend; IAQ (~3 s sample, ~5 min warm-up); ULP (~90 s sample, ~15 min warm-up); PBAQ (~5 s sample, ~5 min warm-up)
-* `update()` scales raw registers: IAQ/ULP use IAQ=raw/10, TVOC=raw/100 mg/m³, ETOH=raw/100 ppm, eCO2=raw ppm, RelIAQ=raw/10; PBAQ only reports TVOC/ETOH (raw/1000), other fields are NAN
+* Operation modes: Suspend; IAQ (~3 s sample, ~5 min warm-up); ULP (~90 s sample, ~15 min warm-up); PBAQ (~5 s sample, ~5 min warm-up). Each mode returns a different set of gas fields, see [Measurement by mode](#measurement-by-mode)
 * Check `isNew` for a fresh sample and `valid` for warm-up completion before using the readings
-* Manual humidity compensation: write 0–100 %RH (stored as code 0–255). Automatic SHT40 compensation can refresh that value about every 60 s
-* After automatic compensation is on, `getSHT40Data()` returns on-board temperature (°C) and humidity (%RH)
-* One-time thermal clean via `runSensorClean()` (about 60 s). Do not interrupt power during clean
+* Manual humidity compensation: write 0–100 %RH (stored as code 0–255)
+* After automatic humidity compensation is enabled, the module internally polls the SHT40 every 60 s. `getSHT40Data()` returns that cached temperature (°C) and humidity (%RH)
+* One-time thermal clean via `runSensorClean()` / `examples/runSensorClean` (about 60 s). Use the API and the demo only once in the sensor lifetime. When it returns, the sensor is already clean and the mode is Suspend. Do not send any further commands after a successful clean. Keep power stable during the sequence.
+
+## Measurement by mode
+
+`update()` / `getAllGasData()` do not always fill every field. IAQ and ULP report the full set. PBAQ only reports TVOC and ETOH (and uses a different scale). Suspend has no measurement payload, so `update()` returns `false`.
+
+| Mode | Line value | Period / warm-up | IAQ | TVOC | ETOH | eCO2 | RelIAQ |
+| ---- | ---------- | ---------------- | --- | ---- | ---- | ---- | ------ |
+| IAQ | `0x01` | ~3 s / ~5 min | raw/10 | raw/100 mg/m³ | raw/100 ppm | raw ppm | raw/10 |
+| ULP | `0x02` | ~90 s / ~15 min | raw/10 | raw/100 mg/m³ | raw/100 ppm | raw ppm | raw/10 |
+| PBAQ | `0x05` | ~5 s / ~5 min | NAN | raw/1000 mg/m³ | raw/1000 ppm | NAN | NAN |
+| Suspend | `0x00` | — | — | — | — | — | — |
+
+IAQ / ULP sample (`examples/getData`, after warm-up):
+
+```
+Humidity comp enable=0
+Mode:     0x1
+IAQ:      1.60
+TVOC:     0.41 mg/m3
+ETOH:     0.21 ppm
+ECO2:     401.0 ppm
+RELIAQ:   1.00
+Data valid: YES
+--------------------
+```
+
+ULP uses the same fields. Only the mode line changes to `Mode:     0x2`, and a new sample arrives about every 90 s.
+
+PBAQ sample (`examples/setOperationMode`). IAQ / eCO2 / RelIAQ print as `nan`:
+
+```
+Mode:     0x5
+IAQ:      nan
+TVOC:     0.04 mg/m3
+ETOH:     0.02 ppm
+ECO2:     nan ppm
+RELIAQ:   nan
+Data valid: YES
+--------------------
+```
+
+Suspend / no measurement:
+
+```
+Failed to read gas data!
+```
 
 ## Installation
 
@@ -146,9 +192,11 @@ SKU: SEN0771
    * @param timeoutMs Timeout in ms, recommend >= 90000 (clean takes about 60 s)
    * @return uint8_t CLEAN_OK=0 finished / CLEAN_DONE=1 already cleaned / CLEAN_TIMEOUT=2 timeout / CLEAN_FAIL=3 comm error
    * @warning Interrupting clean can permanently damage the sensing material. Keep power stable.
-   * @n The sensor should be cleaned only once in its lifetime.
+   * @n Use this API and the runSensorClean demo only once in the sensor lifetime.
+   * @n When the call returns successfully, the sensor is already clean and the operation mode is Suspend.
+   * @n Do not send any further commands after a successful clean.
    * @n Reads REG_I2C_CLEAN_FLAG first. If it is 1, returns CLEAN_DONE without sending 0x80.
-   * @n Otherwise writes eSensorClean (0x80) and polls the mode register: 0x80 still cleaning, 0x00 finished.
+   * @n Otherwise writes eSensorClean (0x80) and polls the mode register: 0x80 still cleaning, 0x00 finished (Suspend).
    */
   uint8_t runSensorClean(uint32_t timeoutMs);
 
@@ -187,7 +235,7 @@ SKU: SEN0771
    * @brief Enable or disable automatic SHT40 humidity compensation on the module
    * @param enable Compensation switch (see eHumComp_t)
    * @n eHumCompDisable: stop SHT40 reads; SGX6410 keeps the last humidity code
-   * @n eHumCompEnable: read SHT40 immediately, then about every 60 s
+   * @n eHumCompEnable: read SHT40 immediately, then the module internally polls SHT40 every 60 s
    * @n Turning off compensation does not restore the SGX6410 default 50 %RH unless you write it with setHumidityCompensate().
    * @return bool
    * @retval true  Write successful
@@ -296,7 +344,7 @@ SKU: SEN0771
    * @brief Read on-board SHT40 temperature and humidity from the module cache
    * @return sSHT40Data_t & Cached temperature (C) and humidity (%RH)
    * @n Gravity-only API. The host does not talk to SHT40 directly.
-   * @n Firmware reads SHT40 only after setAutoHumiCompensation(eHumCompEnable).
+   * @n Firmware reads SHT40 only after setAutoHumiCompensation(eHumCompEnable). The module then polls SHT40 internally every 60 s.
    * @n If compensation is off, or no valid sample has been cached yet, temperature and humidity are NAN.
    * @n Temperature = -45 + 175 * raw / 65535. Humidity = -6 + 125 * raw / 65535.
    */

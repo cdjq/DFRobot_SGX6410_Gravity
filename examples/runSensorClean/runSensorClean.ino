@@ -1,8 +1,10 @@
 /*!
  * @file runSensorClean.ino
  * @brief Run the Gravity SGX6410 thermal clean once
- * @details Reads the clean flag first. If the sensor has already been cleaned, skip.
+ * @details Wait for serial command 'c' or 'C', then start the one-time thermal clean.
+ * @n Reads the clean flag first. If the sensor has already been cleaned, skip.
  * @n Otherwise start mode 0x80 and wait until the flag becomes 1, or until timeout.
+ * @n After a successful clean the mode is Suspend. Do not send any further commands.
  * @warning Keep power stable during clean. Do not reset or unplug. Clean only once in the sensor lifetime.
  * @copyright Copyright (c) 2026 DFRobot Co.Ltd (http://www.dfrobot.com)
  * @license The MIT License (MIT)
@@ -53,10 +55,10 @@ DFRobot_SGX6410_Gravity_I2C sgx6410(&Wire, DEVICE_ADDR);
 #error "Please define SGX6410_COMM_UART or SGX6410_COMM_I2C (exactly one)"
 #endif
 
+bool cleanStarted = false;
+
 void setup()
 {
-  uint8_t result;
-
   // Open the debug serial port
   Serial.begin(115200);
   while (!Serial) {
@@ -69,29 +71,50 @@ void setup()
     delay(1000);
   }
 
-  // Clean once in the sensor lifetime. Keep power stable for about 60 s
-  result = sgx6410.runSensorClean(90000);
-
   Serial.println("======== Gravity SGX6410 runSensorClean ========");
   Serial.print("Init      : ");
   Serial.println("OK");
-  Serial.print("Clean     : ");
-  if (result == CLEAN_OK) {
-    Serial.println("finished");
-  } else if (result == CLEAN_DONE) {
-    Serial.println("already cleaned, skip");
-  } else if (result == CLEAN_TIMEOUT) {
-    Serial.println("timeout, do not power off if still cleaning");
-  } else {
-    Serial.println("failed, check communication");
-  }
   Serial.print("Note      : ");
   Serial.println("Keep power stable. Clean takes about 60 s. Run only once.");
+  Serial.print("Command   : ");
+  Serial.println("Send c or C to start cleaning");
   Serial.println("==================================================");
 }
 
 void loop()
 {
-  // Clean runs only in setup()
-  delay(1000);
+  uint8_t result;
+  char command;
+
+  // After one clean attempt, do not send any further commands
+  if (cleanStarted == true) {
+    delay(1000);
+    return;
+  }
+  if (!Serial.available()) {
+    return;
+  }
+  command = (char)Serial.read();
+  if ((command != 'c') && (command != 'C')) {
+    return;
+  }
+
+  // About 60 s. Do not reset or remove power while cleaning
+  cleanStarted = true;
+  Serial.println("Cleaning started; wait at least 60 seconds...");
+  result = sgx6410.runSensorClean(90000);
+  switch (result) {
+    case CLEAN_OK:
+      Serial.println("Cleaning completed successfully.");
+      break;
+    case CLEAN_DONE:
+      Serial.println("Cleaning was already performed.");
+      break;
+    case CLEAN_TIMEOUT:
+      Serial.println("Cleaning timed out; keep the sensor powered and inspect it.");
+      break;
+    default:
+      Serial.println("Cleaning failed due to communication error.");
+      break;
+  }
 }
