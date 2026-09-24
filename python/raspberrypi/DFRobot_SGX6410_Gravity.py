@@ -73,7 +73,6 @@ REG_H_SENSORS_MODE    = 0x0006
 REG_H_SENSORS_RESET   = 0x0007
 REG_H_HUMIDITY        = 0x0008
 REG_H_HUM_COMP_EN     = 0x0009
-REG_H_CLEAN_FLAG      = 0x000A
 
 REG_I2C_VID            = 0x0000
 REG_I2C_PID            = 0x0001
@@ -96,14 +95,9 @@ REG_I2C_DATA_IS_NEW    = 0x0011
 REG_I2C_DATA_VALID     = 0x0012
 REG_I2C_TEMP_RAW       = 0x0013
 REG_I2C_HUM_RAW        = 0x0014
-REG_I2C_CLEAN_FLAG     = 0x0015
 
 RET_CODE_OK    = 0
 RET_CODE_ERROR = 1
-CLEAN_OK       = 0
-CLEAN_DONE     = 1
-CLEAN_TIMEOUT  = 2
-CLEAN_FAIL     = 3
 
 class GasData(ctypes.Structure):
   '''!
@@ -137,7 +131,6 @@ class DFRobot_SGX6410_Gravity(object):
   IAQ            = 0x01
   ULP            = 0x02
   PBAQ           = 0x05
-  SENSOR_CLEAN   = 0x80
   DATA_IAQ       = 0
   DATA_TVOC      = 1
   DATA_ETOH      = 2
@@ -199,10 +192,9 @@ class DFRobot_SGX6410_Gravity(object):
       @n ULP: Ultra-low power, about 90 s sample period, 15 min warm-up
       @n PBAQ: PBAQ, about 5 s sample period, 5 min warm-up
       @n Mode change is a maintenance action. The bridge restarts warm-up and clears is_new/valid.
-      @n Sensor cleaning 0x80 should be started with run_sensor_clean(), not called repeatedly.
       @return True on success, False on failure
     '''
-    if mode not in (self.SUSPEND, self.IAQ, self.ULP, self.PBAQ, self.SENSOR_CLEAN):
+    if mode not in (self.SUSPEND, self.IAQ, self.ULP, self.PBAQ):
       return False
     if self.write_u16(REG_H_SENSORS_MODE, REG_I2C_SENSORS_MODE, mode) == False:
       return False
@@ -211,34 +203,6 @@ class DFRobot_SGX6410_Gravity(object):
     self._gas_data.is_new = False
     self._gas_data.valid = False
     return True
-
-  def run_sensor_clean(self, timeout_ms):
-    '''!
-      @brief Run the sensor thermal-clean sequence: start clean, then poll until done
-      @param timeout_ms Timeout in ms, recommend >= 90000 (clean takes about 60 s)
-      @return CLEAN_OK=0 finished / CLEAN_DONE=1 already cleaned / CLEAN_TIMEOUT=2 timeout / CLEAN_FAIL=3 comm error
-      @n The sensor should be cleaned only once in its lifetime.
-      @n Reads the clean flag first. If it is 1, returns CLEAN_DONE without sending 0x80.
-      @n Otherwise writes SENSOR_CLEAN (0x80) and polls the mode register: 0x80 still cleaning, 0x00 finished.
-    '''
-    flag = self.read_u16(REG_H_CLEAN_FLAG, REG_I2C_CLEAN_FLAG, self.HOLDING_REG)
-    if flag is None:
-      return CLEAN_FAIL
-    if (flag & 0xFF) == 1:
-      return CLEAN_DONE
-    if self.set_operation_mode(self.SENSOR_CLEAN) == False:
-      return CLEAN_FAIL
-    start = int(time.time() * 1000)
-    while (int(time.time() * 1000) - start) < timeout_ms:
-      time.sleep(1)
-      mode = self.read_u16(REG_I_SENSORS_MODE, REG_I2C_SENSORS_MODE, self.INPUT_REG)
-      if mode is None:
-        return CLEAN_FAIL
-      mode = mode & 0xFF
-      if mode == self.SUSPEND:
-        self._mode = self.SUSPEND
-        return CLEAN_OK
-    return CLEAN_TIMEOUT
 
   def get_operation_mode(self):
     '''!

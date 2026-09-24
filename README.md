@@ -16,6 +16,7 @@ SKU: SEN0771
 ## Table of Contents
 
   * [Summary](#summary)
+  * [Gas fields and meanings](#gas-fields-and-meanings)
   * [Measurement by mode](#measurement-by-mode)
   * [Installation](#installation)
   * [Methods](#methods)
@@ -32,7 +33,20 @@ SKU: SEN0771
 * Check `isNew` for a fresh sample and `valid` for warm-up completion before using the readings
 * Manual humidity compensation: write 0–100 %RH (stored as code 0–255)
 * After automatic humidity compensation is enabled, the module internally polls the SHT40 every 60 s. `getSHT40Data()` returns that cached temperature (°C) and humidity (%RH)
-* One-time thermal clean via `runSensorClean()` / `examples/runSensorClean` (about 60 s). Use the API and the demo only once in the sensor lifetime. When it returns, the sensor is already clean and the mode is Suspend. Do not send any further commands after a successful clean. Keep power stable during the sequence.
+
+## Gas fields and meanings
+
+The SGX6410 reports algorithm-processed air-quality indicators and gas equivalents. These values are not laboratory-grade, selective measurements of every individual gas in the air.
+
+| Field | What it represents | Measurement and unit | Notes |
+| --- | --- | --- | --- |
+| `IAQ` | Indoor Air Quality index (UBA level) | Dimensionless index; IAQ/ULP use `raw / 10` | A combined air-quality indicator derived mainly from VOC-related sensor responses; it is not the concentration of one gas. |
+| `TVOC` | Total Volatile Organic Compounds | Estimated concentration in `mg/m³` | Represents the overall level of volatile organic compounds, rather than one specific compound. |
+| `ETOH` | Ethanol equivalent | Equivalent concentration in `ppm` | A reducing-gas/VOC response expressed as an ethanol equivalent; it is not a selective ethanol measurement. |
+| `eCO2` | Estimated CO₂ | Estimated concentration in `ppm` | An algorithmic estimate based on the air-quality response; it is not a direct NDIR CO₂ measurement. It is `NAN` in PBAQ and Suspend. |
+| `RELIAQ` | Relative indoor air quality | Relative, dimensionless value; IAQ/ULP use `raw / 10` | A relative air-quality indicator for changes or trends; it is not an absolute gas concentration. It is `NAN` in PBAQ and Suspend. |
+
+The on-board SHT40 also reports `temperature` in °C and `humidity` in %RH. These are environmental readings used for humidity compensation, not gas concentrations.
 
 ## Measurement by mode
 
@@ -179,26 +193,11 @@ Failed to read gas data!
    * @n eUlp: Ultra-low power, about 90 s sample period, 15 min warm-up
    * @n ePbaq: PBAQ, about 5 s sample period, 5 min warm-up
    * @n Mode change is a maintenance action. The module restarts warm-up and clears isNew/valid.
-   * @n Sensor cleaning 0x80 should be started with runSensorClean(), not called repeatedly.
    * @return bool
    * @retval true  Setting successful
    * @retval false Setting failed or mode not allowed
    */
   bool setOperationMode(eMode_t mode);
-
-  /**
-   * @fn runSensorClean
-   * @brief Run the sensor thermal-clean sequence: start clean, then poll until done
-   * @param timeoutMs Timeout in ms, recommend >= 90000 (clean takes about 60 s)
-   * @return uint8_t CLEAN_OK=0 finished / CLEAN_DONE=1 already cleaned / CLEAN_TIMEOUT=2 timeout / CLEAN_FAIL=3 comm error
-   * @warning Interrupting clean can permanently damage the sensing material. Keep power stable.
-   * @n Use this API and the runSensorClean demo only once in the sensor lifetime.
-   * @n When the call returns successfully, the sensor is already clean and the operation mode is Suspend.
-   * @n Do not send any further commands after a successful clean.
-   * @n Reads REG_I2C_CLEAN_FLAG first. If it is 1, returns CLEAN_DONE without sending 0x80.
-   * @n Otherwise writes eSensorClean (0x80) and polls the mode register: 0x80 still cleaning, 0x00 finished (Suspend).
-   */
-  uint8_t runSensorClean(uint32_t timeoutMs);
 
   /**
    * @fn getOperationMode

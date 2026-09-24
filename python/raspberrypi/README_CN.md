@@ -16,6 +16,7 @@ SKU: SEN0771
 ## 目录
 
   * [概述](#概述)
+  * [气体和空气质量字段](#气体和空气质量字段)
   * [不同模式下的读数](#不同模式下的读数)
   * [库安装](#库安装)
   * [方法](#方法)
@@ -32,7 +33,20 @@ SKU: SEN0771
 * 使用数据前请检查 `is_new`（是否新样本）和 `valid`（预热是否完成）
 * 手动湿度补偿：写入 0–100 %RH（内部存为 0–255 码）
 * 开启自动湿度补偿后，模块内部每 60 s 轮询一次 SHT40。`get_sht40_data()` 读取的是这次缓存的温度（°C）和湿度（%RH）
-* `run_sensor_clean()` 与示例 `examples/run_sensor_clean` 一生最好只执行一次（约 60 s）。调用返回后传感器已经清洁完成，工作模式会变为 Suspend，此后不要再发送任何操作。清洁过程中请保持供电稳定。
+
+## 气体和空气质量字段
+
+SGX6410 输出的是经过算法处理的空气质量指标和气体当量，并不是对空气中每一种气体都进行实验室级的专一定量测量。
+
+| 字段 | 表示的内容 | 测量数据和单位 | 说明 |
+| --- | --- | --- | --- |
+| `IAQ` | 室内空气质量指数（UBA level） | 无量纲指数；IAQ/ULP 为 `raw / 10` | 主要根据 VOC 相关传感器响应计算出的综合空气质量指标，不代表某一种气体的浓度。 |
+| `TVOC` | 总挥发性有机物 | 估算浓度，单位 `mg/m³` | 反映挥发性有机物的总体水平，不对应某一种特定化合物。 |
+| `ETOH` | 乙醇当量 | 当量浓度，单位 `ppm` | 将还原性气体/VOC 的响应换算成乙醇当量，不是对乙醇的专一测量。 |
+| `eCO2` | 估算 CO₂ | 估算浓度，单位 `ppm` | 根据空气质量响应通过算法估算，不是 NDIR 方式的直接 CO₂ 测量；PBAQ 和 Suspend 模式为 `NAN`。 |
+| `RELIAQ` | 相对室内空气质量 | 相对的无量纲数值；IAQ/ULP 为 `raw / 10` | 用于反映空气质量变化或趋势，不是绝对气体浓度；PBAQ 和 Suspend 模式为 `NAN`。 |
+
+板载 SHT40 还会输出 `temperature`（°C）和 `humidity`（%RH）。这两个是环境参数，用于湿度补偿，不是气体浓度。
 
 ## 不同模式下的读数
 
@@ -141,18 +155,7 @@ python3 examples/get_data/get_data.py
       @n ULP：约 90 s 采样，预热 15 min
       @n PBAQ：约 5 s 采样，预热 5 min
       @n 改模式会重新预热并清除 is_new/valid。
-      @n 清洁模式 0x80 请用 run_sensor_clean()，不要反复调用。
       @return 成功 True，失败 False
-    '''
-
-  def run_sensor_clean(self, timeout_ms)
-    '''!
-      @brief 执行传感器热清洁：启动后轮询直到完成
-      @param timeout_ms 超时时间，单位 ms，建议 >= 90000（清洁约 60 s）
-      @return CLEAN_OK=0 完成 / CLEAN_DONE=1 已清洁过 / CLEAN_TIMEOUT=2 超时 / CLEAN_FAIL=3 通信失败
-      @n 本 API 和 run_sensor_clean 示例一生最好只使用一次。
-      @n 调用成功返回后，传感器已经清洁完成，工作模式变为 Suspend。
-      @n 清洁结束后不要再执行任何操作。
     '''
 
   def get_operation_mode(self)

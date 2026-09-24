@@ -95,7 +95,6 @@
 #define REG_H_SENSORS_RESET       0x0007    ///< UART holding: write 0x0001 to reset
 #define REG_H_HUMIDITY            0x0008    ///< UART holding: humidity code 0-255
 #define REG_H_HUM_COMP_EN         0x0009    ///< UART holding: humidity compensation enable
-#define REG_H_CLEAN_FLAG          0x000A    ///< UART holding: 0=not cleaned, 1=cleaned (once in lifetime)
 
 /*****************************I2C registers*********************************************** */
 #define REG_I2C_VID               0x0000    ///< I2C: vendor ID
@@ -119,16 +118,11 @@
 #define REG_I2C_DATA_VALID        0x0012    ///< I2C: 1 = warm-up complete, 0 = invalid
 #define REG_I2C_TEMP_RAW          0x0013    ///< I2C: SHT40 temperature ticks, T=-45+175*raw/65535
 #define REG_I2C_HUM_RAW           0x0014    ///< I2C: SHT40 humidity ticks, RH=-6+125*raw/65535
-#define REG_I2C_CLEAN_FLAG        0x0015    ///< I2C: 0=not cleaned, 1=cleaned (2 bytes, g_I2CRegMap[42..43])
 
 class DFRobot_SGX6410_Gravity {
 public:
 #define RET_CODE_OK    0    ///< Return code: success
 #define RET_CODE_ERROR 1    ///< Return code: failure
-#define CLEAN_OK       0    ///< Sensor clean finished
-#define CLEAN_DONE     1    ///< Sensor has already been cleaned
-#define CLEAN_TIMEOUT  2    ///< Clean did not finish before timeout
-#define CLEAN_FAIL     3    ///< Communication failed during clean
 
   /**
    * @enum eCommMode_t
@@ -160,8 +154,7 @@ public:
     eSuspend     = 0x00,    /**< Suspend mode */
     eIaq         = 0x01,    /**< IAQ 2nd generation mode, poll about every 3 s, warm-up 5 min */
     eUlp         = 0x02,    /**< Ultra-low power mode, poll about every 90 s, warm-up 15 min */
-    ePbaq        = 0x05,    /**< PBAQ mode, poll about every 5 s, warm-up 5 min */
-    eSensorClean = 0x80    /**< Thermal clean, once in lifetime */
+    ePbaq        = 0x05     /**< PBAQ mode, poll about every 5 s, warm-up 5 min */
   } eMode_t;
 
   /**
@@ -245,24 +238,11 @@ public:
    * @n eUlp: Ultra-low power, about 90 s sample period, 15 min warm-up
    * @n ePbaq: PBAQ, about 5 s sample period, 5 min warm-up
    * @n Mode change is a maintenance action. The bridge restarts warm-up and clears isNew/valid.
-   * @n Sensor cleaning 0x80 should be started with runSensorClean(), not called repeatedly.
    * @return bool
    * @retval true  Setting successful
    * @retval false Setting failed or mode not allowed
    */
   bool setOperationMode(eMode_t mode);
-
-  /**
-   * @fn runSensorClean
-   * @brief Run the sensor thermal-clean sequence: start clean, then poll until done
-   * @param timeoutMs Timeout in ms, recommend >= 90000 (clean takes about 60 s)
-   * @return uint8_t CLEAN_OK=0 finished / CLEAN_DONE=1 already cleaned / CLEAN_TIMEOUT=2 timeout / CLEAN_FAIL=3 comm error
-   * @warning Interrupting clean can permanently damage the sensing material. Keep power stable.
-   * @n The sensor should be cleaned only once in its lifetime.
-   * @n Reads REG_I2C_CLEAN_FLAG first. If it is 1, returns CLEAN_DONE without sending 0x80.
-   * @n Otherwise writes eSensorClean (0x80) and polls the mode register: 0x80 still cleaning, 0x00 finished.
-   */
-  uint8_t runSensorClean(uint32_t timeoutMs);
 
   /**
    * @fn getOperationMode

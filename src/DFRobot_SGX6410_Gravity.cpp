@@ -111,7 +111,7 @@ bool DFRobot_SGX6410_Gravity::reset(void)
 
 bool DFRobot_SGX6410_Gravity::setOperationMode(eMode_t mode)
 {
-  if ((mode != eSuspend) && (mode != eIaq) && (mode != eUlp) && (mode != ePbaq) && (mode != eSensorClean)) {
+  if ((mode != eSuspend) && (mode != eIaq) && (mode != eUlp) && (mode != ePbaq)) {
     DBG("Invalid operation mode");
     return false;
   }
@@ -124,41 +124,6 @@ bool DFRobot_SGX6410_Gravity::setOperationMode(eMode_t mode)
   _gasData.isNew  = false;
   _gasData.valid  = false;
   return true;
-}
-
-uint8_t DFRobot_SGX6410_Gravity::runSensorClean(uint32_t timeoutMs)
-{
-  uint16_t flag = 0;
-  uint16_t mode = 0;
-  uint32_t start;
-
-  if (!readU16(REG_H_CLEAN_FLAG, REG_I2C_CLEAN_FLAG, flag, eHoldingReg)) {
-    DBG("Failed to read clean flag");
-    return CLEAN_FAIL;
-  }
-  if ((flag & 0xFF) == 1) {
-    return CLEAN_DONE;
-  }
-
-  if (!setOperationMode(eSensorClean)) {
-    DBG("Failed to start sensor clean");
-    return CLEAN_FAIL;
-  }
-
-  start = millis();
-  while ((uint32_t)(millis() - start) < timeoutMs) {
-    delay(1000);
-    if (!readU16(REG_I_SENSORS_MODE, REG_I2C_SENSORS_MODE, mode, eInputReg)) {
-      DBG("Failed to poll operation mode");
-      return CLEAN_FAIL;
-    }
-    mode &= 0xFF;
-    if (mode == (uint16_t)eSuspend) {
-      _mode = eSuspend;
-      return CLEAN_OK;
-    }
-  }
-  return CLEAN_TIMEOUT;
 }
 
 DFRobot_SGX6410_Gravity::eMode_t DFRobot_SGX6410_Gravity::getOperationMode(void)
@@ -401,7 +366,7 @@ bool DFRobot_SGX6410_Gravity_I2C::begin(void)
 #elif defined(ARDUINO_ARCH_ESP8266)
   _pWire->setClockStretchLimit(150000);
 #elif defined(WIRE_HAS_TIMEOUT)
-  _pWire->setWireTimeout(1000, true);
+  _pWire->setWireTimeout(100, true);
 #endif
   return DFRobot_SGX6410_Gravity::begin();
 }
