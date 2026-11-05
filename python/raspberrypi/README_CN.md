@@ -155,6 +155,7 @@ python3 examples/get_data/get_data.py
       @n ULP：约 90 s 采样，预热 15 min
       @n PBAQ：约 5 s 采样，预热 5 min
       @n 改模式会重新预热并清除 is_new/valid。
+      @n 传感器工作模式支持掉电保存，重新上电后自动恢复已保存的模式。
       @return 成功 True，失败 False
     '''
 
@@ -186,6 +187,7 @@ python3 examples/get_data/get_data.py
       @brief 打开或关闭模块上的 SHT40 自动湿度补偿
       @param enable HUM_COMP_DISABLE 或 HUM_COMP_ENABLE
       @n HUM_COMP_ENABLE：立即读一次 SHT40，之后模块内部每 60 s 轮询一次 SHT40
+      @n 自动湿度补偿开关支持掉电保存，重新上电后自动恢复已保存的开关状态。
       @return 成功 True，失败 False
     '''
 

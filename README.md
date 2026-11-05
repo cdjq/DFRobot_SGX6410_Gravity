@@ -193,6 +193,7 @@ Failed to read gas data!
    * @n eUlp: Ultra-low power, about 90 s sample period, 15 min warm-up
    * @n ePbaq: PBAQ, about 5 s sample period, 5 min warm-up
    * @n Mode change is a maintenance action. The module restarts warm-up and clears isNew/valid.
+   * @n The sensor operation mode is saved in non-volatile memory and automatically restored after a power cycle.
    * @return bool
    * @retval true  Setting successful
    * @retval false Setting failed or mode not allowed
@@ -236,6 +237,7 @@ Failed to read gas data!
    * @n eHumCompDisable: stop SHT40 reads; SGX6410 keeps the last humidity code
    * @n eHumCompEnable: read SHT40 immediately, then the module internally polls SHT40 every 60 s
    * @n Turning off compensation does not restore the SGX6410 default 50 %RH unless you write it with setHumidityCompensate().
+   * @n The automatic humidity compensation enable/disable setting is saved in non-volatile memory and automatically restored after a power cycle.
    * @return bool
    * @retval true  Write successful
    * @retval false Invalid value or write failed

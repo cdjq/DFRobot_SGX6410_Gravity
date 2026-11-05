@@ -14,8 +14,8 @@
 #include "DFRobot_SGX6410_Gravity.h"
 
 /* Select one communication interface (uncomment exactly one) */
-#define SGX6410_COMM_UART
-// #define SGX6410_COMM_I2C
+// #define SGX6410_COMM_UART
+#define SGX6410_COMM_I2C
 
 const uint8_t DEVICE_ADDR = SGX_ADDR_DEFAULT;    // ADD_SEL low = 0x52, ADD_SEL high = 0x53
 
@@ -25,14 +25,18 @@ const uint8_t DEVICE_ADDR = SGX_ADDR_DEFAULT;    // ADD_SEL low = 0x52, ADD_SEL 
  *    Sensor Pin |        MCU Pin        | Leonardo/Mega2560/M0 |    UNO    | ESP8266 | ESP32 |  microbit  |
  *     VCC       |          5V           |         5V           |    5V     |   5V    |  5V   |     X      |
  *     GND       |         GND           |        GND           |    GND    |   GND   |  GND  |     X      |
- *     RX        |        MCU TX         |     Serial1 TX1      |     3     |    3    |  17   |     X      |
- *     TX        |        MCU RX         |     Serial1 RX1      |     2     |    2    |  16   |     X      |
+ *     RX        |        MCU TX         |     Serial1 TX1      |     3     |  GPIO5  |  17   |     X      |
+ *     TX        |        MCU RX         |     Serial1 RX1      |     2     |  GPIO4  |  16   |     X      |
  * ---------------------------------------------------------------------------------------------------------*/
 /* Baud rate must match the module (default 9600 8N1). SoftSerial may be unstable at high baud rates. */
 /* COM_SEL must be UART. */
 #if defined(ARDUINO_AVR_UNO) || defined(ESP8266)
 #include <SoftwareSerial.h>
+#if defined(ARDUINO_AVR_UNO)
 SoftwareSerial mySerial(2, 3);    // RX=2, TX=3
+#elif defined(ESP8266)
+SoftwareSerial mySerial(4, 5);    // RX=GPIO4, TX=GPIO5
+#endif
 DFRobot_SGX6410_Gravity_UART sgx6410(&mySerial, SGX_UART_BAUD_DEFAULT, DEVICE_ADDR);
 #elif defined(ESP32)
 DFRobot_SGX6410_Gravity_UART sgx6410(&Serial1, SGX_UART_BAUD_DEFAULT, DEVICE_ADDR, /*RX pin*/ 16, /*TX pin*/ 17);

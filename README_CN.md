@@ -192,6 +192,7 @@ Failed to read gas data!
    * @n eUlp: 超低功耗，采样周期约 90 s，预热 15 min
    * @n ePbaq: PBAQ，采样周期约 5 s，预热 5 min
    * @n 改模式属于维护操作。模块会重新预热并清除 isNew/valid。
+   * @n 传感器工作模式支持掉电保存，重新上电后自动恢复已保存的模式。
    * @return bool
    * @retval true  设置成功
    * @retval false 设置失败或模式不允许
@@ -235,6 +236,7 @@ Failed to read gas data!
    * @n eHumCompDisable: 停止读取 SHT40；SGX6410 保留最后一次湿度码
    * @n eHumCompEnable: 立即读一次 SHT40，之后模块内部每 60 s 轮询一次 SHT40
    * @n 关闭补偿不会自动恢复 SGX6410 默认 50 %RH，除非再用 setHumidityCompensate() 写入。
+   * @n 自动湿度补偿开关支持掉电保存，重新上电后自动恢复已保存的开关状态。
    * @return bool
    * @retval true  写入成功
    * @retval false 非法值或写入失败

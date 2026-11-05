@@ -155,6 +155,7 @@ Set `ctype = 0` for I2C or a non-zero value for UART. UART also needs `DFRobot_R
       @n ULP: Ultra-low power, about 90 s sample period, 15 min warm-up
       @n PBAQ: PBAQ, about 5 s sample period, 5 min warm-up
       @n Mode change is a maintenance action. The module restarts warm-up and clears is_new/valid.
+      @n The sensor operation mode is saved in non-volatile memory and automatically restored after a power cycle.
       @return True on success, False on failure
     '''
 
@@ -186,6 +187,7 @@ Set `ctype = 0` for I2C or a non-zero value for UART. UART also needs `DFRobot_R
       @brief Enable or disable automatic SHT40 humidity compensation on the module
       @param enable HUM_COMP_DISABLE or HUM_COMP_ENABLE
       @n HUM_COMP_ENABLE: read SHT40 immediately, then the module internally polls SHT40 every 60 s
+      @n The automatic humidity compensation enable/disable setting is saved in non-volatile memory and automatically restored after a power cycle.
       @return True on success, False on failure
     '''
 
