@@ -23,11 +23,11 @@ const uint8_t DEVICE_ADDR = SGX_ADDR_DEFAULT;    // ADD_SEL low = 0x52, ADD_SEL 
 #if defined(SGX6410_COMM_UART)
 /* ---------------------------------------------------------------------------------------------------------
  * Hardware connection table:
- *    Sensor Pin |        MCU Pin        | Leonardo/Mega2560/M0 |    UNO    | ESP8266 | ESP32 |  microbit  |
- *     VCC       |          5V           |         5V           |    5V     |   5V    |  5V   |     X      |
- *     GND       |         GND           |        GND           |    GND    |   GND   |  GND  |     X      |
- *     RX        |        MCU TX         |     Serial1 TX1      |     3     |  GPIO5  |  17   |     X      |
- *     TX        |        MCU RX         |     Serial1 RX1      |     2     |  GPIO4  |  16   |     X      |
+ *    Sensor Pin |        MCU Pin        | Leonardo/Mega2560/M0 |    UNO    | ESP8266 | ESP32 |
+ *     VCC       |          5V           |         5V           |    5V     |   5V    |  5V   |
+ *     GND       |         GND           |        GND           |    GND    |   GND   |  GND  |
+ *     RX        |        MCU TX         |     Serial1 TX1      |     3     |  GPIO5  |  17   |
+ *     TX        |        MCU RX         |     Serial1 RX1      |     2     |  GPIO4  |  16   |
  * ---------------------------------------------------------------------------------------------------------*/
 /* Baud rate must match the module (default 9600 8N1). SoftSerial may be unstable at high baud rates. */
 /* COM_SEL must be UART. */
@@ -41,8 +41,6 @@ SoftwareSerial mySerial(4, 5);    // RX=GPIO4, TX=GPIO5
 DFRobot_SGX6410_Gravity_UART sgx6410(&mySerial, SGX_UART_BAUD_DEFAULT, DEVICE_ADDR);
 #elif defined(ESP32)
 DFRobot_SGX6410_Gravity_UART sgx6410(&Serial1, SGX_UART_BAUD_DEFAULT, DEVICE_ADDR, /*RX pin*/ 16, /*TX pin*/ 17);
-#elif defined(ARDUINO_BBC_MICROBIT) && !defined(ARDUINO_BBC_MICROBIT_V2)
-#error "BBC micro:bit has no usable USART/Serial1. Use I2C."
 #else
 DFRobot_SGX6410_Gravity_UART sgx6410(&Serial1, SGX_UART_BAUD_DEFAULT, DEVICE_ADDR);
 #endif
@@ -50,6 +48,13 @@ DFRobot_SGX6410_Gravity_UART sgx6410(&Serial1, SGX_UART_BAUD_DEFAULT, DEVICE_ADD
 
 
 #elif defined(SGX6410_COMM_I2C)
+/* ---------------------------------------------------------------------------------------------------------
+ *   SGX6410  |      MCU       | Leonardo/Mega2560/M0 | UNO | ESP8266 | ESP32 | Other Wire boards
+ *     VCC    |      3.3V      |        3.3V           | 3.3V|   3.3V  | 3.3V  |        3.3V
+ *     GND    |      GND       |        GND            | GND |   GND   | GND   |        GND
+ *     SCL    |      SCL       |        SCL            | SCL |  GPIO5  | SCL   |        SCL
+ *     SDA    |      SDA       |        SDA            | SDA |  GPIO4  | SDA   |        SDA
+ * ---------------------------------------------------------------------------------------------------------*/
 /**
  * I2C address: ADD_SEL low = 0x52, ADD_SEL high = 0x53 (default)
  * ESP32/ESP8266 can also pass SCL/SDA. UNO should omit pin arguments.
