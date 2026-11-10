@@ -7,7 +7,7 @@ DFRobot_SGX6410_Gravity 是 Gravity MEMS 空气质量传感器（SKU: SEN0771）
 
 典型流程：调用 `begin()` 校验 DFRobot 厂商 ID（`0x3343`），设置工作模式（IAQ / ULP / PBAQ / Suspend），等待预热完成（`valid` 为 true），再调用 `update()` 读取缓存的气体数据。湿度可按 0–100 %RH 手动写入。开启自动湿度补偿后，模块内部每 60 s 轮询一次 SHT40。
 
-## 产品链接
+## 产品链接 ([https://www.dfrobot.com.cn](https://www.dfrobot.com.cn))
 
 ```
 SKU: SEN0771
@@ -15,9 +15,8 @@ SKU: SEN0771
 
 ## 目录
 
+  * [产品链接](#产品链接-httpswwwdfrobotcomcn)
   * [概述](#概述)
-  * [气体和空气质量字段](#气体和空气质量字段)
-  * [不同模式下的读数](#不同模式下的读数)
   * [库安装](#库安装)
   * [方法](#方法)
   * [兼容性](#兼容性)
@@ -33,7 +32,7 @@ SKU: SEN0771
 * 手动湿度补偿：写入 0–100 %RH（内部存为 0–255 码）
 * 开启自动湿度补偿后，模块内部每 60 s 轮询一次 SHT40。`getSHT40Data()` 读取的是这次缓存的温度（°C）和湿度（%RH）
 
-## 气体和空气质量字段
+### 气体和空气质量字段
 
 SGX6410 输出的是经过算法处理的空气质量指标和气体当量，并不是对空气中每一种气体都进行实验室级的专一定量测量。
 
@@ -47,7 +46,7 @@ SGX6410 输出的是经过算法处理的空气质量指标和气体当量，并
 
 板载 SHT40 还会输出 `temperature`（°C）和 `humidity`（%RH）。这两个是环境参数，用于湿度补偿，不是气体浓度。
 
-## 不同模式下的读数
+### 不同模式下的读数
 
 `update()` / `getAllGasData()` 并不是每个模式都会填满全部字段。IAQ、ULP 输出完整气体数据；PBAQ 只输出 TVOC 和 ETOH（换算系数也不同）；Suspend 没有测量数据，`update()` 返回 `false`。
 
@@ -320,10 +319,10 @@ Failed to read gas data!
   /**
    * @fn getAllGasData
    * @brief 返回缓存的气体测量结构体
-   * @return const sGasData_t & 最近一次缓存的测量
+   * @return sGasData_t & 最近一次缓存的测量
    * @n 须先调用 update()。用 isNew 判断是否新样本，用 valid 判断预热是否完成。
    */
-  const sGasData_t &getAllGasData(void) const;
+  sGasData_t &getAllGasData(void);
 
   /**
    * @fn getSingleGasData
@@ -355,12 +354,12 @@ Failed to read gas data!
 
 | 主板         | 通过 | 未通过 | 未测试 | 备注 |
 | ------------ | :--: | :----: | :----: | ---- |
-| Arduino uno  |      |        |   √    |      |
-| Mega2560     |      |        |   √    |      |
-| Leonardo     |      |        |   √    |      |
-| ESP32        |      |        |   √    |      |
-| ESP8266      |      |        |   √    |      |
-| micro:bit    |      |        |   √    |      |
+| Arduino uno  |   √    |        |      |      |
+| Mega2560     |      √    |        |   |      |
+| Leonardo     |     √   |        |     |      |
+| ESP32        |    √     |        |    |      |
+| ESP8266      |      √   |        |    |      |
+| micro:bit    |     √  |        |      |      |
 
 ## 历史
 

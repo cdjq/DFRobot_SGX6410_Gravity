@@ -7,7 +7,7 @@
  * @license The MIT License (MIT)
  * @author PLELES(li.jia@dfrobot.com)
  * @version V1.0.0
- * @date 2026-09-11
+ * @date 2026-09-09
  * @url https://github.com/DFRobot/DFRobot_SGX6410_Gravity
  */
 
@@ -97,7 +97,7 @@ void setup()
   Serial.print("SGX PID   : 0x");
   Serial.println(sgx6410.getSgxProductId(), HEX);
   Serial.print("Tracking  : ");
-  uint8_t tracking[6] = {0, 0, 0, 0, 0, 0};
+  uint8_t tracking[6] = { 0, 0, 0, 0, 0, 0 };
   if (sgx6410.getTrackingNumber(tracking)) {
     for (uint8_t i = 0; i < 6; i++) {
       if (tracking[i] < 0x10) {

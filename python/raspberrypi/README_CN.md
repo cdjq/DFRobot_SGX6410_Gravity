@@ -7,7 +7,7 @@ DFRobot_SGX6410_Gravity 是 Gravity MEMS 空气质量传感器（SKU: SEN0771）
 
 典型流程：调用 `begin()` 校验 DFRobot 厂商 ID（`0x3343`），设置工作模式（IAQ / ULP / PBAQ / Suspend），等待预热完成（`valid` 为 true），再调用 `update()` 读取缓存的气体数据。湿度可按 0–100 %RH 手动写入。开启自动湿度补偿后，模块内部每 60 s 轮询一次 SHT40。示例里 `ctype = 0` 为 I2C，非 0 为 UART。
 
-## 产品链接
+## 产品链接 ([https://www.dfrobot.com.cn](https://www.dfrobot.com.cn))
 
 ```
 SKU: SEN0771
@@ -15,9 +15,8 @@ SKU: SEN0771
 
 ## 目录
 
+  * [产品链接](#产品链接-httpswwwdfrobotcomcn)
   * [概述](#概述)
-  * [气体和空气质量字段](#气体和空气质量字段)
-  * [不同模式下的读数](#不同模式下的读数)
   * [库安装](#库安装)
   * [方法](#方法)
   * [兼容性](#兼容性)
@@ -34,7 +33,7 @@ SKU: SEN0771
 * 手动湿度补偿：写入 0–100 %RH（内部存为 0–255 码）
 * 开启自动湿度补偿后，模块内部每 60 s 轮询一次 SHT40。`get_sht40_data()` 读取的是这次缓存的温度（°C）和湿度（%RH）
 
-## 气体和空气质量字段
+### 气体和空气质量字段
 
 SGX6410 输出的是经过算法处理的空气质量指标和气体当量，并不是对空气中每一种气体都进行实验室级的专一定量测量。
 
@@ -48,7 +47,7 @@ SGX6410 输出的是经过算法处理的空气质量指标和气体当量，并
 
 板载 SHT40 还会输出 `temperature`（°C）和 `humidity`（%RH）。这两个是环境参数，用于湿度补偿，不是气体浓度。
 
-## 不同模式下的读数
+### 不同模式下的读数
 
 `update()` / `get_all_gas_data()` 并不是每个模式都会填满全部字段。IAQ、ULP 输出完整气体数据；PBAQ 只输出 TVOC 和 ETOH（换算系数也不同）；Suspend 没有测量数据，`update()` 返回 `False`。
 
@@ -115,7 +114,8 @@ python3 examples/get_data/get_data.py
 ## 方法
 
 ```python
-  def __init__(self, bus, addr)
+  # DFRobot_SGX6410_Gravity_I2C
+  def __init__(self, bus, addr):
     '''!
       @brief 构造函数
       @param bus I2C 总线号，树莓派通常为 1
@@ -123,7 +123,8 @@ python3 examples/get_data/get_data.py
       @n ADD_SEL 低电平选择 0x52，高电平选择 0x53。拨码在模块上电时锁存。
     '''
 
-  def __init__(self, baud, addr)
+  # DFRobot_SGX6410_Gravity_UART
+  def __init__(self, baud, addr):
     '''!
       @brief 构造函数
       @param baud 波特率，默认 9600
@@ -131,14 +132,14 @@ python3 examples/get_data/get_data.py
       @n COM_SEL 必须拨到 UART。默认串口为 /dev/ttyAMA0，9600 8N1。
     '''
 
-  def begin(self)
+  def begin(self):
     '''!
       @brief 初始化模块并校验厂商 ID
       @return 成功 True，失败 False
       @n 读取 DEVICE_VID（0x3343）。模块 PID 在产品 ID 确定前可能仍为 0x0000。
     '''
 
-  def reset(self)
+  def reset(self):
     '''!
       @brief 向模块发送传感器复位命令
       @return 成功 True，失败 False
@@ -146,7 +147,7 @@ python3 examples/get_data/get_data.py
       @n 复位后需等待模块完成 SGX6410 启动再调用 update()。
     '''
 
-  def set_operation_mode(self, mode)
+  def set_operation_mode(self, mode):
     '''!
       @brief 设置 SGX6410 工作模式
       @param mode 工作模式
@@ -159,14 +160,14 @@ python3 examples/get_data/get_data.py
       @return 成功 True，失败 False
     '''
 
-  def get_operation_mode(self)
+  def get_operation_mode(self):
     '''!
       @brief 读取当前 SGX6410 工作模式
       @return 当前模式寄存器值
       @n 读取失败时返回 SUSPEND。
     '''
 
-  def set_humidity_compensate(self, rh)
+  def set_humidity_compensate(self, rh):
     '''!
       @brief 写入手动湿度补偿
       @param rh 相对湿度，范围 0.0 到 100.0，单位 %RH
@@ -175,14 +176,14 @@ python3 examples/get_data/get_data.py
       @return 成功 True，失败 False
     '''
 
-  def get_humidity_compensate(self)
+  def get_humidity_compensate(self):
     '''!
       @brief 读取最近一次写入的湿度码，换算为 %RH
       @return 相对湿度 %RH
       @n 读取失败时返回 NAN。
     '''
 
-  def set_auto_humi_compensation(self, enable)
+  def set_auto_humi_compensation(self, enable):
     '''!
       @brief 打开或关闭模块上的 SHT40 自动湿度补偿
       @param enable HUM_COMP_DISABLE 或 HUM_COMP_ENABLE
@@ -191,71 +192,71 @@ python3 examples/get_data/get_data.py
       @return 成功 True，失败 False
     '''
 
-  def get_humidity_comp_enable(self)
+  def get_humidity_comp_enable(self):
     '''!
       @brief 读取自动湿度补偿开关
       @return 当前开关
       @n 读取失败时返回 HUM_COMP_DISABLE。
     '''
 
-  def get_vid(self)
+  def get_vid(self):
     '''!
       @brief 读取 DFRobot 厂商 ID
       @return 厂商 ID，期望为 0x3343
     '''
 
-  def get_pid(self)
+  def get_pid(self):
     '''!
       @brief 读取模块产品 ID
       @return 模块 PID
     '''
 
-  def get_fw_version(self)
+  def get_fw_version(self):
     '''!
       @brief 读取模块固件版本
       @return 编码版本，V1.0.0.0 为 0x1000
     '''
 
-  def get_device_addr(self)
+  def get_device_addr(self):
     '''!
       @brief 读取已锁存的外部从机地址
       @return 7 位地址，0x52 或 0x53
     '''
 
-  def get_sgx_product_id(self)
+  def get_sgx_product_id(self):
     '''!
       @brief 读取缓存的 SGX6410 产品 ID
       @return 传感器产品 ID，期望为 0x2310
     '''
 
-  def get_tracking_number(self)
+  def get_tracking_number(self):
     '''!
       @brief 读取 6 字节 SGX6410 序列号
       @return 成功返回 6 字节列表，失败返回 None
     '''
 
-  def update(self)
+  def update(self):
     '''!
       @brief 读取模式标志和测量寄存器，并换算为工程单位
       @return 寄存器读到则 True
       @n 调用 get_all_gas_data() / get_single_gas_data() 前必须先调用本函数。
     '''
 
-  def get_all_gas_data(self)
+  def get_all_gas_data(self):
     '''!
       @brief 返回缓存的气体测量结构
       @return GasData 最近一次缓存的测量
       @n 须先调用 update()。用 is_new 判断是否新样本，用 valid 判断预热是否完成。
     '''
 
-  def get_single_gas_data(self, data_type)
+  def get_single_gas_data(self, data_type):
     '''!
       @brief 返回缓存中的单个气体值
       @param data_type DATA_IAQ / DATA_TVOC / DATA_ETOH / DATA_ECO2 / DATA_RELIAQ
       @return 缓存值；当前模式不支持时为 NAN
     '''
 
-  def get_sht40_data(self)
+  def get_sht40_data(self):
     '''!
       @brief 从模块缓存读取板载 SHT40 温湿度
       @return SHT40Data 温度（C）和湿度（%RH）

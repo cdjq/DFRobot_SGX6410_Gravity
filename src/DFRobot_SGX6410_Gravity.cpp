@@ -14,16 +14,16 @@
 
 DFRobot_SGX6410_Gravity::DFRobot_SGX6410_Gravity(void)
 {
-  _mode           = eSuspend;
-  _gasData.IAQ    = NAN;
-  _gasData.TVOC   = NAN;
-  _gasData.ETOH   = NAN;
-  _gasData.ECO2   = NAN;
-  _gasData.RELIAQ = NAN;
+  _mode                  = eSuspend;
+  _gasData.IAQ           = NAN;
+  _gasData.TVOC          = NAN;
+  _gasData.ETOH          = NAN;
+  _gasData.ECO2          = NAN;
+  _gasData.RELIAQ        = NAN;
   _gasData.isNew         = false;
   _gasData.valid         = false;
   _sht40Data.temperature = NAN;
-  _sht40Data.humidity     = NAN;
+  _sht40Data.humidity    = NAN;
 }
 
 DFRobot_SGX6410_Gravity::~DFRobot_SGX6410_Gravity() {}
@@ -51,9 +51,9 @@ bool DFRobot_SGX6410_Gravity::readU16(uint16_t uartReg, uint16_t i2cReg, uint16_
 
 bool DFRobot_SGX6410_Gravity::writeU16(uint16_t uartReg, uint16_t i2cReg, uint16_t value)
 {
-  uint16_t reg   = getRegAddr(uartReg, i2cReg);
-  uint16_t raw   = value;
-  uint8_t  ret   = writeReg(reg, &raw, 2);
+  uint16_t reg = getRegAddr(uartReg, i2cReg);
+  uint16_t raw = value;
+  uint8_t  ret = writeReg(reg, &raw, 2);
   return (ret == RET_CODE_OK);
 }
 
@@ -104,8 +104,8 @@ bool DFRobot_SGX6410_Gravity::reset(void)
     return false;
   }
   delay(50);
-  _gasData.isNew  = false;
-  _gasData.valid  = false;
+  _gasData.isNew = false;
+  _gasData.valid = false;
   return true;
 }
 
@@ -120,9 +120,9 @@ bool DFRobot_SGX6410_Gravity::setOperationMode(eMode_t mode)
     return false;
   }
   delay(50);
-  _mode           = mode;
-  _gasData.isNew  = false;
-  _gasData.valid  = false;
+  _mode          = mode;
+  _gasData.isNew = false;
+  _gasData.valid = false;
   return true;
 }
 
@@ -235,7 +235,7 @@ uint16_t DFRobot_SGX6410_Gravity::getSgxProductId(void)
 
 bool DFRobot_SGX6410_Gravity::getTrackingNumber(uint8_t *number)
 {
-  uint8_t data[6] = {0, 0, 0, 0, 0, 0};
+  uint8_t data[6] = { 0, 0, 0, 0, 0, 0 };
   if (number == NULL) {
     return false;
   }
@@ -253,7 +253,7 @@ bool DFRobot_SGX6410_Gravity::getTrackingNumber(uint8_t *number)
 bool DFRobot_SGX6410_Gravity::update(void)
 {
   uint16_t modeRaw  = 0;
-  uint8_t  meas[14] = {0};
+  uint8_t  meas[14] = { 0 };
   uint16_t iaqRaw;
   uint16_t tvocRaw;
   uint16_t etohRaw;
@@ -278,11 +278,11 @@ bool DFRobot_SGX6410_Gravity::update(void)
     return false;
   }
 
-  iaqRaw    = (uint16_t)meas[0]  | ((uint16_t)meas[1]  << 8);
-  tvocRaw   = (uint16_t)meas[2]  | ((uint16_t)meas[3]  << 8);
-  etohRaw   = (uint16_t)meas[4]  | ((uint16_t)meas[5]  << 8);
-  eco2Raw   = (uint16_t)meas[6]  | ((uint16_t)meas[7]  << 8);
-  relIaqRaw = (uint16_t)meas[8]  | ((uint16_t)meas[9]  << 8);
+  iaqRaw    = (uint16_t)meas[0] | ((uint16_t)meas[1] << 8);
+  tvocRaw   = (uint16_t)meas[2] | ((uint16_t)meas[3] << 8);
+  etohRaw   = (uint16_t)meas[4] | ((uint16_t)meas[5] << 8);
+  eco2Raw   = (uint16_t)meas[6] | ((uint16_t)meas[7] << 8);
+  relIaqRaw = (uint16_t)meas[8] | ((uint16_t)meas[9] << 8);
   isNewRaw  = (uint16_t)meas[10] | ((uint16_t)meas[11] << 8);
   validRaw  = (uint16_t)meas[12] | ((uint16_t)meas[13] << 8);
 
@@ -312,7 +312,7 @@ float DFRobot_SGX6410_Gravity::getSingleGasData(eDataType_t dataType)
 
 DFRobot_SGX6410_Gravity::sSHT40Data_t &DFRobot_SGX6410_Gravity::getSHT40Data(void)
 {
-  uint8_t  data[4] = {0, 0, 0, 0};
+  uint8_t  data[4] = { 0, 0, 0, 0 };
   uint16_t tempRaw;
   uint16_t humRaw;
 

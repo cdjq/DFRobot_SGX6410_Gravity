@@ -7,7 +7,7 @@
  * @license The MIT License (MIT)
  * @author PLELES(li.jia@dfrobot.com)
  * @version V1.0.0
- * @date 2026-09-10
+ * @date 2026-09-09
  * @url https://github.com/DFRobot/DFRobot_SGX6410_Gravity
  */
 

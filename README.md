@@ -7,7 +7,7 @@ The host talks to the Gravity module over I2C or UART Modbus RTU, not to the SGX
 
 Typical workflow: call `begin()` to verify the DFRobot vendor ID (`0x3343`), set an operation mode (IAQ / ULP / PBAQ / Suspend), wait until warm-up completes (`valid` is true), then call `update()` and read the cached gas data. Humidity can be written manually as 0–100 %RH. After automatic compensation is enabled, the module internally polls the SHT40 every 60 s.
 
-## Product Link
+## Product Link ([https://www.dfrobot.com](https://www.dfrobot.com))
 
 ```
 SKU: SEN0771
@@ -15,9 +15,8 @@ SKU: SEN0771
 
 ## Table of Contents
 
+  * [Product Link](#product-link-httpswwwdfrobotcom)
   * [Summary](#summary)
-  * [Gas fields and meanings](#gas-fields-and-meanings)
-  * [Measurement by mode](#measurement-by-mode)
   * [Installation](#installation)
   * [Methods](#methods)
   * [Compatibility](#compatibility)
@@ -34,7 +33,7 @@ SKU: SEN0771
 * Manual humidity compensation: write 0–100 %RH (stored as code 0–255)
 * After automatic humidity compensation is enabled, the module internally polls the SHT40 every 60 s. `getSHT40Data()` returns that cached temperature (°C) and humidity (%RH)
 
-## Gas fields and meanings
+### Gas fields and meanings
 
 The SGX6410 reports algorithm-processed air-quality indicators and gas equivalents. These values are not laboratory-grade, selective measurements of every individual gas in the air.
 
@@ -48,7 +47,7 @@ The SGX6410 reports algorithm-processed air-quality indicators and gas equivalen
 
 The on-board SHT40 also reports `temperature` in °C and `humidity` in %RH. These are environmental readings used for humidity compensation, not gas concentrations.
 
-## Measurement by mode
+### Measurement by mode
 
 `update()` / `getAllGasData()` do not always fill every field. IAQ and ULP report the full set. PBAQ only reports TVOC and ETOH (and uses a different scale). Suspend has no measurement payload, so `update()` returns `false`.
 
@@ -321,10 +320,10 @@ Failed to read gas data!
   /**
    * @fn getAllGasData
    * @brief Return the cached gas measurement structure
-   * @return const sGasData_t & Latest cached measurement
+   * @return sGasData_t & Latest cached measurement
    * @n Must call update() first. Check isNew for a new sample and valid for warm-up completion.
    */
-  const sGasData_t &getAllGasData(void) const;
+  sGasData_t &getAllGasData(void);
 
   /**
    * @fn getSingleGasData

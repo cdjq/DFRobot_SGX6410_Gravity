@@ -8,7 +8,7 @@
  * @license The MIT License (MIT)
  * @author PLELES(li.jia@dfrobot.com)
  * @version V1.0.0
- * @date 2026-09-11
+ * @date 2026-09-09
  * @url https://github.com/DFRobot/DFRobot_SGX6410_Gravity
  */
 
@@ -45,8 +45,6 @@ DFRobot_SGX6410_Gravity_UART sgx6410(&Serial1, SGX_UART_BAUD_DEFAULT, DEVICE_ADD
 DFRobot_SGX6410_Gravity_UART sgx6410(&Serial1, SGX_UART_BAUD_DEFAULT, DEVICE_ADDR);
 #endif
 
-
-
 #elif defined(SGX6410_COMM_I2C)
 /* ---------------------------------------------------------------------------------------------------------
  *   SGX6410  |      MCU       | Leonardo/Mega2560/M0 | UNO | ESP8266 | ESP32 | Other Wire boards
@@ -67,7 +65,7 @@ DFRobot_SGX6410_Gravity_I2C sgx6410(&Wire, DEVICE_ADDR);
 
 void setup()
 {
-  uint8_t tracking[6] = {0, 0, 0, 0, 0, 0};
+  uint8_t tracking[6] = { 0, 0, 0, 0, 0, 0 };
 
   // Open the debug serial port
   Serial.begin(115200);

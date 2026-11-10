@@ -1,9 +1,10 @@
 # -*- coding:utf-8 -*-
 '''!
-  @file get_device_info.py
-  @brief 读取 SGX6410 的设备信息
-  @details 演示读取 VID、PID、固件版本、设备地址、SGX6410 产品 ID 和追踪号。
+@file get_device_info.py
+@brief 读取 SGX6410 的设备信息
+@details 演示读取 VID、PID、固件版本、设备地址、SGX6410 产品 ID 和追踪号。
 '''
+
 import os
 import sys
 import time
@@ -20,6 +21,7 @@ if ctype == 0:
   sgx6410 = DFRobot_SGX6410_Gravity_I2C(I2C_BUS, ADDRESS)
 else:
   sgx6410 = DFRobot_SGX6410_Gravity_UART(SGX_UART_BAUD_DEFAULT, ADDRESS)
+
 
 def setup():
   # 初始化模块，并校验 DFRobot 厂商 ID（应为 0x3343）。
@@ -46,6 +48,7 @@ def setup():
   else:
     print("追踪号         : " + " ".join("%02X" % value for value in tracking))
   print("===================================")
+
 
 if __name__ == "__main__":
   setup()
