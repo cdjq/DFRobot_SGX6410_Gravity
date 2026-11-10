@@ -17,7 +17,7 @@
 // #define SGX6410_COMM_UART
 #define SGX6410_COMM_I2C
 
-const uint8_t DEVICE_ADDR = SGX_ADDR_DEFAULT;    // ADD_SEL low = 0x52, ADD_SEL high = 0x53
+const uint8_t deviceAddr = SGX_ADDR_DEFAULT;    // ADD_SEL low = 0x52, ADD_SEL high = 0x53
 
 #if defined(SGX6410_COMM_UART)
 /* ---------------------------------------------------------------------------------------------------------
@@ -37,11 +37,11 @@ SoftwareSerial mySerial(2, 3);    // RX=2, TX=3
 #elif defined(ESP8266)
 SoftwareSerial mySerial(4, 5);    // RX=GPIO4, TX=GPIO5
 #endif
-DFRobot_SGX6410_Gravity_UART sgx6410(&mySerial, SGX_UART_BAUD_DEFAULT, DEVICE_ADDR);
+DFRobot_SGX6410_Gravity_UART sgx6410(&mySerial, SGX_UART_BAUD_DEFAULT, deviceAddr);
 #elif defined(ESP32)
-DFRobot_SGX6410_Gravity_UART sgx6410(&Serial1, SGX_UART_BAUD_DEFAULT, DEVICE_ADDR, /*RX pin*/ 16, /*TX pin*/ 17);
+DFRobot_SGX6410_Gravity_UART sgx6410(&Serial1, SGX_UART_BAUD_DEFAULT, deviceAddr, /*RX pin*/ 16, /*TX pin*/ 17);
 #else
-DFRobot_SGX6410_Gravity_UART sgx6410(&Serial1, SGX_UART_BAUD_DEFAULT, DEVICE_ADDR);
+DFRobot_SGX6410_Gravity_UART sgx6410(&Serial1, SGX_UART_BAUD_DEFAULT, deviceAddr);
 #endif
 #elif defined(SGX6410_COMM_I2C)
 /* ---------------------------------------------------------------------------------------------------------
@@ -56,7 +56,7 @@ DFRobot_SGX6410_Gravity_UART sgx6410(&Serial1, SGX_UART_BAUD_DEFAULT, DEVICE_ADD
  * ESP32/ESP8266 can also pass SCL/SDA. UNO should omit pin arguments.
  * COM_SEL must be I2C.
  */
-DFRobot_SGX6410_Gravity_I2C sgx6410(&Wire, DEVICE_ADDR);
+DFRobot_SGX6410_Gravity_I2C sgx6410(&Wire, deviceAddr);
 #else
 #error "Please define SGX6410_COMM_UART or SGX6410_COMM_I2C (exactly one)"
 #endif

@@ -341,7 +341,20 @@ DFRobot_SGX6410_Gravity::sSHT40Data_t &DFRobot_SGX6410_Gravity::getSHT40Data(voi
   return _sht40Data;
 }
 
-DFRobot_SGX6410_Gravity_I2C::DFRobot_SGX6410_Gravity_I2C(TwoWire *pWire, uint8_t addr, uint8_t sclPin, uint8_t sdaPin) : _pWire(pWire), _address(addr), _sclPin(sclPin), _sdaPin(sdaPin) {}
+DFRobot_SGX6410_Gravity_I2C::DFRobot_SGX6410_Gravity_I2C(TwoWire *pWire, uint8_t addr, uint8_t sclPin, uint8_t sdaPin)
+    : _pWire(pWire),
+      _address(addr)
+#if defined(ESP32) || defined(ESP8266)
+      ,
+      _sclPin(sclPin),
+      _sdaPin(sdaPin)
+#endif
+{
+#if !defined(ESP32) && !defined(ESP8266)
+  (void)sclPin;
+  (void)sdaPin;
+#endif
+}
 
 DFRobot_SGX6410_Gravity_I2C::~DFRobot_SGX6410_Gravity_I2C() {}
 
@@ -416,9 +429,25 @@ uint8_t DFRobot_SGX6410_Gravity_I2C::readReg(uint16_t reg, void *data, uint8_t l
 }
 
 #if defined(ARDUINO_AVR_UNO) || defined(ESP8266)
-DFRobot_SGX6410_Gravity_UART::DFRobot_SGX6410_Gravity_UART(SoftwareSerial *sSerial, uint32_t baud, uint8_t addr) : DFRobot_RTU(sSerial), _serial(sSerial), _baud(baud), _rxPin(0), _txPin(0), _deviceAddr(addr) {}
+DFRobot_SGX6410_Gravity_UART::DFRobot_SGX6410_Gravity_UART(SoftwareSerial *sSerial, uint32_t baud, uint8_t addr) : DFRobot_RTU(sSerial), _serial(sSerial), _baud(baud), _deviceAddr(addr) {}
 #else
-DFRobot_SGX6410_Gravity_UART::DFRobot_SGX6410_Gravity_UART(HardwareSerial *hSerial, uint32_t baud, uint8_t addr, uint8_t rxPin, uint8_t txPin) : DFRobot_RTU(hSerial), _serial(hSerial), _baud(baud), _rxPin(rxPin), _txPin(txPin), _deviceAddr(addr) {}
+DFRobot_SGX6410_Gravity_UART::DFRobot_SGX6410_Gravity_UART(HardwareSerial *hSerial, uint32_t baud, uint8_t addr, uint8_t rxPin, uint8_t txPin)
+    : DFRobot_RTU(hSerial),
+      _serial(hSerial),
+      _baud(baud)
+#if defined(ESP32)
+      ,
+      _rxPin(rxPin),
+      _txPin(txPin)
+#endif
+      ,
+      _deviceAddr(addr)
+{
+#if !defined(ESP32)
+  (void)rxPin;
+  (void)txPin;
+#endif
+}
 #endif
 
 DFRobot_SGX6410_Gravity_UART::~DFRobot_SGX6410_Gravity_UART() {}

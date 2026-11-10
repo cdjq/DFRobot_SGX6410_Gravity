@@ -183,14 +183,15 @@ public:
    * @struct sGasData_t
    * @brief Parsed and cached gas measurement data
    */
+  // Preserve the documented public gas field names for existing sketches.
   typedef struct {
-    float IAQ;    /**< IAQ, UBA level; NAN in PBAQ or Suspend */
-    float TVOC;   /**< TVOC, mg/m3 */
-    float ETOH;   /**< Ethanol equivalent, ppm */
-    float ECO2;   /**< Estimated CO2, ppm; NAN in PBAQ or Suspend */
-    float RELIAQ; /**< Relative IAQ; NAN in PBAQ or Suspend */
-    bool  isNew;  /**< True when the bridge reports a new sample counter */
-    bool  valid;  /**< True when the sample was acquired after mode warm-up */
+    float IAQ; /**< IAQ, UBA level; NAN in PBAQ or Suspend */         // NOLINT(readability-identifier-naming)
+    float TVOC; /**< TVOC, mg/m3 */                                   // NOLINT(readability-identifier-naming)
+    float ETOH; /**< Ethanol equivalent, ppm */                       // NOLINT(readability-identifier-naming)
+    float ECO2; /**< Estimated CO2, ppm; NAN in PBAQ or Suspend */    // NOLINT(readability-identifier-naming)
+    float RELIAQ; /**< Relative IAQ; NAN in PBAQ or Suspend */        // NOLINT(readability-identifier-naming)
+    bool  isNew;                                                      /**< True when the bridge reports a new sample counter */
+    bool  valid;                                                      /**< True when the sample was acquired after mode warm-up */
   } sGasData_t;
 
   /**
@@ -452,8 +453,10 @@ protected:
 private:
   TwoWire *_pWire;
   uint8_t  _address;
-  uint8_t  _sclPin;
-  uint8_t  _sdaPin;
+#if defined(ESP32) || defined(ESP8266)
+  uint8_t _sclPin;
+  uint8_t _sdaPin;
+#endif
 };
 
 class DFRobot_SGX6410_Gravity_UART : public DFRobot_SGX6410_Gravity, public DFRobot_RTU {
@@ -513,9 +516,11 @@ private:
   HardwareSerial *_serial;
 #endif
   uint32_t _baud;
-  uint8_t  _rxPin;
-  uint8_t  _txPin;
-  uint8_t  _deviceAddr;
+#if defined(ESP32)
+  uint8_t _rxPin;
+  uint8_t _txPin;
+#endif
+  uint8_t _deviceAddr;
 };
 
 #endif

@@ -18,16 +18,17 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath
 from DFRobot_SGX6410_Gravity import *
 
 # Select operation mode: IAQ / ULP / PBAQ / SUSPEND
-SGX6410_OPERATION_MODE = DFRobot_SGX6410_Gravity.PBAQ
+sgx6410_operation_mode = DFRobot_SGX6410_Gravity.PBAQ
 
 ctype = 0
-ADDRESS = SGX_ADDR_DEFAULT
-I2C_1 = 0x01
+address = SGX_ADDR_DEFAULT
+i2c_1 = 0x01
 
+sgx6410: DFRobot_SGX6410_Gravity
 if ctype == 0:
-  sgx6410 = DFRobot_SGX6410_Gravity_I2C(I2C_1, ADDRESS)
+  sgx6410 = DFRobot_SGX6410_Gravity_I2C(i2c_1, address)
 else:
-  sgx6410 = DFRobot_SGX6410_Gravity_UART(SGX_UART_BAUD_DEFAULT, ADDRESS)
+  sgx6410 = DFRobot_SGX6410_Gravity_UART(SGX_UART_BAUD_DEFAULT, address)
 
 
 def setup():
@@ -37,7 +38,7 @@ def setup():
     time.sleep(1)
 
   # Apply the operation mode selected above
-  while sgx6410.set_operation_mode(SGX6410_OPERATION_MODE) == False:
+  while sgx6410.set_operation_mode(sgx6410_operation_mode) == False:
     print("Set operation mode failed")
     time.sleep(1)
 

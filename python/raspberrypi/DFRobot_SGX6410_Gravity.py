@@ -21,6 +21,8 @@ except:
 
 from DFRobot_RTU import DFRobot_RTU
 
+# Public register constants retain their documented names for API compatibility.
+# pylint: disable=invalid-name
 I2C_MODE = 0x01
 UART_MODE = 0x02
 
@@ -100,9 +102,11 @@ REG_I2C_HUM_RAW = 0x0014
 
 RET_CODE_OK = 0
 RET_CODE_ERROR = 1
+# pylint: enable=invalid-name
 
 
-class GasData(ctypes.Structure):
+class GasData(ctypes.Structure):  # pylint: disable=invalid-name
+  # Keep the published data container name for existing callers.
   '''!
   @brief Parsed and cached gas measurement data
   '''
@@ -118,7 +122,8 @@ class GasData(ctypes.Structure):
   ]
 
 
-class SHT40Data(ctypes.Structure):
+class SHT40Data(ctypes.Structure):  # pylint: disable=invalid-name
+  # Keep the published data container name for existing callers.
   '''!
   @brief On-board SHT40 temperature and humidity
   '''
@@ -146,7 +151,8 @@ class DFRobot_SGX6410_Gravity(object):
   HUM_COMP_DISABLE = 0x0000
   HUM_COMP_ENABLE = 0x0001
 
-  def __init__(self, bus=1, baud=9600, mode=I2C_MODE):
+  # baud is retained in the base signature for compatibility; UART initializes it.
+  def __init__(self, bus=1, baud=9600, mode=I2C_MODE):  # pylint: disable=unused-argument
     '''!
     @brief Constructor
     @param bus I2C bus number

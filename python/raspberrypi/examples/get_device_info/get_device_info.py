@@ -14,13 +14,14 @@ from DFRobot_SGX6410_Gravity import *
 
 # ctype=0 使用 I2C；ctype=1 使用 UART。
 ctype = 0
-ADDRESS = SGX_ADDR_DEFAULT
-I2C_BUS = 1
+address = SGX_ADDR_DEFAULT
+i2c_bus = 1
 
+sgx6410: DFRobot_SGX6410_Gravity
 if ctype == 0:
-  sgx6410 = DFRobot_SGX6410_Gravity_I2C(I2C_BUS, ADDRESS)
+  sgx6410 = DFRobot_SGX6410_Gravity_I2C(i2c_bus, address)
 else:
-  sgx6410 = DFRobot_SGX6410_Gravity_UART(SGX_UART_BAUD_DEFAULT, ADDRESS)
+  sgx6410 = DFRobot_SGX6410_Gravity_UART(SGX_UART_BAUD_DEFAULT, address)
 
 
 def setup():

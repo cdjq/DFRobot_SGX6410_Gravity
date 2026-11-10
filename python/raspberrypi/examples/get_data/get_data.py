@@ -18,13 +18,14 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath
 from DFRobot_SGX6410_Gravity import *
 
 ctype = 0
-ADDRESS = SGX_ADDR_DEFAULT
-I2C_1 = 0x01
+address = SGX_ADDR_DEFAULT
+i2c_1 = 0x01
 
+sgx6410: DFRobot_SGX6410_Gravity
 if ctype == 0:
-  sgx6410 = DFRobot_SGX6410_Gravity_I2C(I2C_1, ADDRESS)
+  sgx6410 = DFRobot_SGX6410_Gravity_I2C(i2c_1, address)
 else:
-  sgx6410 = DFRobot_SGX6410_Gravity_UART(SGX_UART_BAUD_DEFAULT, ADDRESS)
+  sgx6410 = DFRobot_SGX6410_Gravity_UART(SGX_UART_BAUD_DEFAULT, address)
 
 
 def setup():
