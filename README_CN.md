@@ -354,12 +354,13 @@ Failed to read gas data!
 
 | 主板         | 通过 | 未通过 | 未测试 | 备注 |
 | ------------ | :--: | :----: | :----: | ---- |
-| Arduino uno  |   √    |        |      |      |
-| Mega2560     |      √    |        |   |      |
-| Leonardo     |     √   |        |     |      |
-| ESP32        |    √     |        |    |      |
-| ESP8266      |      √   |        |    |      |
-| micro:bit    |     √  |        |      |      |
+| Arduino uno  |  √   |        |        |      |
+| Mega2560     |  √   |        |        |      |
+| Leonardo     |  √   |        |        |      |
+| ESP32        |  √   |        |        |      |
+| ESP8266      |  √   |        |        |      |
+| FireBeetle M0 |  √   |        |        |      |
+| micro:bit    |  √   |        |        |      |
 
 ## 历史
 

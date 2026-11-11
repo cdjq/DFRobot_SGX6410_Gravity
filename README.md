@@ -355,12 +355,13 @@ Failed to read gas data!
 
 | Board        | Work Well | Work Wrong | Untested | Remarks |
 | ------------ | :-------: | :--------: | :------: | ------- |
-| Arduino uno  |           |            |    √     |         |
-| Mega2560     |           |            |    √     |         |
-| Leonardo     |           |            |    √     |         |
-| ESP32        |           |            |    √     |         |
-| ESP8266      |           |            |    √     |         |
-| micro:bit    |           |            |    √     |         |
+| Arduino uno  |     √     |            |          |         |
+| Mega2560     |     √     |            |          |         |
+| Leonardo     |     √     |            |          |         |
+| ESP32        |     √     |            |          |         |
+| ESP8266      |     √     |            |          |         |
+| FireBeetle M0 |     √     |            |          |         |
+| micro:bit    |     √     |            |          |         |
 
 ## History
 

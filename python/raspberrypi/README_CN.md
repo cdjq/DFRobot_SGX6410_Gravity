@@ -268,16 +268,13 @@ python3 examples/get_data/get_data.py
 
 | Board        | Work Well | Work Wrong | Untested | Remarks |
 | ------------ | :-------: | :--------: | :------: | ------- |
-| RaspberryPi2 |           |            |    √     |         |
-| RaspberryPi3 |           |            |    √     |         |
-| RaspberryPi4 |           |            |    √     |         |
+| RaspberryPi4 |     √     |            |          |         |
 
 * Python Version
 
 | Python  | Work Well | Work Wrong | Untested | Remarks |
 | ------- | :-------: | :--------: | :------: | ------- |
-| Python2 |           |            |    √     |         |
-| Python3 |           |            |    √     |         |
+| Python3 |     √     |            |          |         |
 
 ## 历史
 

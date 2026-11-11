@@ -268,16 +268,13 @@ Set `ctype = 0` for I2C or a non-zero value for UART. UART also needs `DFRobot_R
 
 | Board        | Work Well | Work Wrong | Untested | Remarks |
 | ------------ | :-------: | :--------: | :------: | ------- |
-| RaspberryPi2 |           |            |    √     |         |
-| RaspberryPi3 |           |            |    √     |         |
-| RaspberryPi4 |           |            |    √     |         |
+| RaspberryPi4 |     √     |            |          |         |
 
 * Python Version
 
 | Python  | Work Well | Work Wrong | Untested | Remarks |
 | ------- | :-------: | :--------: | :------: | ------- |
-| Python2 |           |            |    √     |         |
-| Python3 |           |            |    √     |         |
+| Python3 |     √     |            |          |         |
 
 ## History
 
